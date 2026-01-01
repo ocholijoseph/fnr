@@ -43,7 +43,7 @@ export const Footer = () => {
                     </Button>
                 </div>
                 <div className="text-center mt-4">
-                    <p className="text-xs text-muted-foreground">© 2025 Kingdom FM Xtra. All rights reserved.</p>
+                    <p className="text-xs text-muted-foreground">© 2026 Kingdom FM Xtra. All rights reserved.</p>
                 </div>
             </div>
         </footer>
