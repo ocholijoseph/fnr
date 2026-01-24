@@ -6,45 +6,66 @@ import { Badge } from "@/components/ui/badge";
 const mockSchedule = [
     {
         id: "1",
-        name: "Morning Show",
+        name: "Rise & Shine",
         startTime: "06:00",
         endTime: "09:00",
-        description: "Start your day with the best music and news",
+        description: "Devotion + AfroGospel",
     },
     {
         id: "2",
-        name: "Midday Mix",
+        name: "Praise Vibes",
         startTime: "09:00",
         endTime: "12:00",
-        description: "Non-stop hits to keep you going",
+        description: "Urban gospel",
     },
     {
         id: "3",
-        name: "Afternoon Drive",
+        name: "Kingdom Talk",
         startTime: "12:00",
-        endTime: "16:00",
-        description: "The perfect soundtrack for your day",
+        endTime: "15:00",
+        description: "Talk + life",
     },
     {
         id: "4",
-        name: "Drive Time",
-        startTime: "16:00",
-        endTime: "19:00",
-        description: "Rush hour radio at its finest",
+        name: "Traffic Praise",
+        startTime: "15:00",
+        endTime: "18:00",
+        description: "Energy",
     },
     {
         id: "5",
-        name: "Evening Sessions",
-        startTime: "19:00",
-        endTime: "22:00",
-        description: "Wind down with smooth tracks",
+        name: "Worship Lounge",
+        startTime: "18:00",
+        endTime: "21:00",
+        description: "Deep worship",
     },
     {
         id: "6",
-        name: "Night Vibes",
-        startTime: "22:00",
-        endTime: "02:00",
-        description: "Late night music for night owls",
+        name: "Consciousness",
+        startTime: "21:00",
+        endTime: "24:00",
+        description: "Thoughtful time with refreshing raggae tunes",
+    },
+    {
+        id: "7",
+        name: "Prayer",
+        startTime: "24:00",
+        endTime: "01:00",
+        description: "Night prayers",
+    },
+    {
+        id: "8",
+        name: "After Hours Revival",
+        startTime: "01:00",
+        endTime: "04:00",
+        description: "Jazz through the night",
+    },
+    {
+        id: "9",
+        name: "Wake Up!",
+        startTime: "04:00",
+        endTime: "06:00",
+        description: "Night prayers",
     },
 ];
 
@@ -77,8 +98,8 @@ export const ScheduleView = () => {
                         <div
                             key={program.id}
                             className={`p-4 rounded-lg transition-colors ${isCurrent
-                                    ? "bg-primary/10 border-2 border-primary"
-                                    : "bg-secondary hover:bg-secondary/80"
+                                ? "bg-primary/10 border-2 border-primary"
+                                : "bg-secondary hover:bg-secondary/80"
                                 }`}
                         >
                             <div className="flex items-start justify-between gap-3">
