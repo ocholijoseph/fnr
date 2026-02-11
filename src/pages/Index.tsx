@@ -141,7 +141,8 @@ const Index = () => {
 
             // Update listener count and bitrate
             if (activeSource.listeners) {
-                setListenerCount(parseInt(activeSource.listeners, 10));
+                // Add fixed offset of 27 as requested
+                setListenerCount(parseInt(activeSource.listeners, 10) + 27);
             }
             if (activeSource.bitrate) {
                 // Determine if bitrate is likely in bps or kbps
