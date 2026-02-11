@@ -19,6 +19,8 @@ const Index = () => {
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const lastTrackRef = useRef<string>("");
     const metadataErrorCount = useRef<number>(0);
+    const [listenerCount, setListenerCount] = useState<number>(0);
+    const [bitrate, setBitrate] = useState<number>(128); // Default to 128kbps
     const station = {
         title: "Kingdom FM Xtra",
         streamUrl: "https://player2.dreamcode.ng/kfmx",
@@ -52,8 +54,9 @@ const Index = () => {
             const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
             console.log("Fetching metadata from Icecast...");
+            const timestamp = new Date().getTime();
             const response = await fetch(
-                "https://api.allorigins.win/get?url=" + encodeURIComponent("http://69.197.134.188:8000/status-json.xsl"),
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent("http://69.197.134.188:8000/status-json.xsl")}&dummy=${timestamp}`,
                 { signal: controller.signal }
             );
 
@@ -65,27 +68,45 @@ const Index = () => {
 
             const data = await response.json();
 
-            if (!data.contents) {
-                console.error("No contents in response");
-                metadataErrorCount.current++;
-                return;
+            // Handle different proxy response formats
+            let icecastData;
+            if (data.contents) {
+                // allorigins format
+                icecastData = JSON.parse(data.contents);
+            } else {
+                // Direct JSON from other proxies like codetabs
+                icecastData = data;
             }
-
-            const icecastData = JSON.parse(data.contents);
             console.log("Icecast data:", icecastData);
 
             const source = icecastData.icestats?.source;
 
-            // Handle multiple sources - find the one for Kingdom FM Xtra (radio2)
+            // Handle multiple sources - find the best one
             let activeSource = null;
             if (Array.isArray(source)) {
-                // Look for source that contains radio2 or has specific listenurl
-                activeSource = source.find((s: { listenurl?: string; server_name?: string }) =>
+                // Filter for sources that likely match our station
+                const candidates = source.filter((s: { listenurl?: string; server_name?: string }) =>
                     s.listenurl?.includes('radio2') ||
                     s.server_name?.includes('Kingdom FM') ||
                     s.server_name?.includes('KFMX')
-                ) || source[1] || source[0]; // Fallback to second source (radio2) or first
-                console.log("Found source:", activeSource?.listenurl || activeSource?.server_name);
+                );
+
+                if (candidates.length > 0) {
+                    // Pick the candidate with the highest listener count
+                    activeSource = candidates.reduce((prev, current) => {
+                        const prevListeners = parseInt(prev.listeners || '0', 10);
+                        const currListeners = parseInt(current.listeners || '0', 10);
+                        return (prevListeners > currListeners) ? prev : current;
+                    });
+                } else {
+                    // Fallback to highest listener count overall if no specific match
+                    activeSource = source.reduce((prev, current) => {
+                        const prevListeners = parseInt(prev.listeners || '0', 10);
+                        const currListeners = parseInt(current.listeners || '0', 10);
+                        return (prevListeners > currListeners) ? prev : current;
+                    });
+                }
+                console.log("Selected source:", activeSource?.listenurl || activeSource?.server_name, "Listeners:", activeSource?.listeners);
             } else {
                 activeSource = source;
             }
@@ -117,6 +138,20 @@ const Index = () => {
 
             // Reset error count on successful fetch
             metadataErrorCount.current = 0;
+
+            // Update listener count and bitrate
+            if (activeSource.listeners) {
+                setListenerCount(parseInt(activeSource.listeners, 10));
+            }
+            if (activeSource.bitrate) {
+                // Determine if bitrate is likely in bps or kbps
+                // If bitrate > 1000, it's almost certainly bps (e.g. 128000)
+                let newBitrate = parseInt(activeSource.bitrate, 10);
+                if (newBitrate > 1000) {
+                    newBitrate = Math.round(newBitrate / 1000);
+                }
+                setBitrate(newBitrate);
+            }
 
             if (trackKey !== lastTrackRef.current) {
                 console.log("Track changed! Updating...");
@@ -192,6 +227,8 @@ const Index = () => {
                 currentTrack={currentTrack}
                 currentTrackId={currentTrackId}
                 history={history}
+                listenerCount={listenerCount}
+                bitrate={bitrate}
             />
             <Footer />
         </div>

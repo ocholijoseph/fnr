@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -25,9 +25,11 @@ interface RadioPlayerProps {
         artist: string;
         playedAt: string;
     }>;
+    listenerCount?: number;
+    bitrate?: number;
 }
 
-export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [] }: RadioPlayerProps) => {
+export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128 }: RadioPlayerProps) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(70);
     const [isMuted, setIsMuted] = useState(false);
@@ -38,6 +40,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastPlayAttemptRef = useRef<number>(0);
     const userInteractedRef = useRef<boolean>(false);
+    const [dataUsage, setDataUsage] = useState<number>(0);
+    const lastDataUpdateRef = useRef<number>(Date.now());
 
     useEffect(() => {
         if (audioRef.current) {
@@ -240,6 +244,37 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
         };
     }, [volume, station.streamUrl, hasSignal, connectionStatus, checkStreamHealth, reconnectStream, isPlaying]);
 
+    // Data usage tracking
+    useEffect(() => {
+        if (!isPlaying) {
+            lastDataUpdateRef.current = Date.now();
+            return;
+        }
+
+        const intervalId = setInterval(() => {
+            const now = Date.now();
+            const timeDiffSeconds = (now - lastDataUpdateRef.current) / 1000;
+
+            // Calculate bytes: seconds * (kbps * 1000 / 8)
+            const bytesPerSecond = (bitrate * 1000) / 8;
+            const bytesUsed = timeDiffSeconds * bytesPerSecond;
+
+            setDataUsage(prev => prev + bytesUsed);
+            lastDataUpdateRef.current = now;
+        }, 1000);
+
+        return () => clearInterval(intervalId);
+    }, [isPlaying, bitrate]);
+
+    const formatDataUsage = (bytes: number) => {
+        if (bytes === 0) return "0 B";
+        const k = 1024;
+        const sizes = ["B", "KB", "MB", "GB", "TB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+    };
+
     // Auto-play on component mount
     useEffect(() => {
         const attemptAutoPlay = async () => {
@@ -354,6 +389,27 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 preload="auto"
             />
 
+            {/* Top Info Bar */}
+            <div className="flex justify-between items-start w-full px-4 mb-4">
+                {/* Listener Count - Top Left */}
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white/90 text-sm font-medium border border-white/10 shadow-sm">
+                        <Users className="w-4 h-4" />
+                        <span>{listenerCount.toLocaleString()}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-1 font-medium tracking-wide uppercase">Listeners</span>
+                </div>
+
+                {/* Data Usage - Top Right */}
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white/90 text-sm font-medium border border-white/10 shadow-sm">
+                        <Activity className="w-4 h-4" />
+                        <span>{formatDataUsage(dataUsage)}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-1 font-medium tracking-wide uppercase">Data Used</span>
+                </div>
+            </div>
+
             {/* Logo */}
             <div className="flex justify-center">
                 <div className="relative group rounded-full p-2 bg-gradient-to-br from-gray-100/90 to-gray-200/80 shadow-2xl">
@@ -367,7 +423,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             </div>
 
             {/* Station Title */}
-            <h1 className="text-4xl font-display font-bold text-center text-gradient tracking-tight">
+            <h1 className="text-4xl font-display font-bold text-center text-gradient tracking-tight px-4 mt-4">
                 {station.title}
             </h1>
 
