@@ -382,7 +382,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const connectionDisplay = getConnectionDisplay();
 
     return (
-        <div className="w-full max-w-2xl mx-auto player-card rounded-2xl p-8 space-y-6">
+        <div className="w-full max-w-2xl mx-auto player-card rounded-2xl p-4 space-y-3 flex-1 flex flex-col justify-between">
             <audio
                 ref={audioRef}
                 src={station.streamUrl}
@@ -390,7 +390,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             />
 
             {/* Top Info Bar */}
-            <div className="flex justify-between items-start w-full px-4 mb-4">
+            <div className="flex justify-between items-start w-full px-2 mb-2">
                 {/* Listener Count - Top Left */}
                 <div className="flex flex-col items-center">
                     <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white/90 text-sm font-medium border border-white/10 shadow-sm">
@@ -416,14 +416,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     <img
                         src="/fulllogo.png"
                         alt="Kingdom FM Xtra Logo"
-                        className="h-40 w-40 transition-all duration-300 group-hover:scale-110 drop-shadow-2xl"
+                        className="h-28 w-28 transition-all duration-300 group-hover:scale-110 drop-shadow-2xl"
                     />
                     <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl opacity-60 group-hover:opacity-90 transition-opacity duration-300" />
                 </div>
             </div>
 
             {/* Station Title */}
-            <h1 className="text-4xl font-display font-bold text-center text-gradient tracking-tight px-4 mt-4">
+            <h1 className="text-3xl font-display font-bold text-center text-gradient tracking-tight px-4">
                 {station.title}
             </h1>
 

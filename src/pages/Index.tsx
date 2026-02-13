@@ -222,7 +222,7 @@ const Index = () => {
     }, [fetchMetadata]);
 
     return (
-        <div className="min-h-screen bg-background py-6 px-4 max-w-xl mx-auto">
+        <div className="h-full bg-background flex flex-col py-4 px-4 max-w-xl mx-auto">
             <RadioPlayer
                 station={station}
                 currentTrack={currentTrack}
