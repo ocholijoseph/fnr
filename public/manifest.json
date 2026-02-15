@@ -1,0 +1,16 @@
+{
+    "name": "Kingdom FM Xtra",
+    "short_name": "KFMX",
+    "start_url": ".",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#0f0f0f",
+    "theme_color": "#0f0f0f",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

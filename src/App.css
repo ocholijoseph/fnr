@@ -7,19 +7,18 @@
     text-align: center;
 }
 
-/* Lock portrait orientation on mobile devices - strictly maintain vertical layout */
-@media screen and (max-width: 915px) {
-
-    html,
-    body {
-        width: 412px;
-        height: 915px;
-        overflow: hidden;
-        margin: 0 auto;
-        position: fixed;
-        left: 50%;
-        transform: translateX(-50%);
-    }
+/* Strictly maintain vertical layout on all mobile screens */
+html,
+body {
+    width: 412px !important;
+    height: 915px !important;
+    overflow: hidden !important;
+    margin: 0 auto !important;
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    background-color: #000;
 }
 
 .logo {
