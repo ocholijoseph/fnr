@@ -108,7 +108,7 @@ All colors MUST be HSL.
     }
 
     .animate-marquee {
-        animation: marquee 15s linear infinite;
+        animation: marquee 30s linear infinite;
     }
 
     .animate-marquee:hover {
