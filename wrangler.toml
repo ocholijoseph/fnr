@@ -17,3 +17,7 @@ routes = [
 # Environment variables (optional)
 [vars]
 NODE_ENV = "production"
+
+[[kv_namespaces]]
+binding = "SCROLL_KV"
+id = "PLACE_YOUR_KV_NAMESPACE_ID_HERE"
