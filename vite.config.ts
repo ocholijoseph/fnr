@@ -52,34 +52,48 @@ export default defineConfig(({ mode }) => ({
                         }
 
                         // Handler for submissions
-                        if (req.method === 'POST' && (url === '/api/prayer-request' || url === '/api/testimonies')) {
+                        if (url === '/api/prayer-request' || url === '/api/testimonies') {
                             const fileName = url === '/api/prayer-request' ? 'prayer_requests.json' : 'testimonies.json';
                             const filePath = path.resolve(__dirname, fileName);
 
-                            let body = '';
-                            req.on('data', chunk => { body += chunk.toString(); });
-                            req.on('end', async () => {
+                            if (req.method === 'GET') {
                                 try {
-                                    const data = JSON.parse(body);
-                                    const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
-
-                                    let existing = [];
-                                    try {
-                                        const fileData = await fs.readFile(filePath, 'utf-8');
-                                        existing = JSON.parse(fileData);
-                                    } catch (e) { }
-
-                                    existing.push(submission);
-                                    await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
-
+                                    const data = await fs.readFile(filePath, 'utf-8');
                                     res.setHeader('Content-Type', 'application/json');
-                                    res.end(JSON.stringify({ success: true }));
+                                    res.end(data);
                                 } catch (error) {
-                                    res.statusCode = 500;
-                                    res.end(JSON.stringify({ error: 'Failed to process submission' }));
+                                    res.setHeader('Content-Type', 'application/json');
+                                    res.end(JSON.stringify([]));
                                 }
-                            });
-                            return;
+                                return;
+                            }
+
+                            if (req.method === 'POST') {
+                                let body = '';
+                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('end', async () => {
+                                    try {
+                                        const data = JSON.parse(body);
+                                        const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+
+                                        let existing = [];
+                                        try {
+                                            const fileData = await fs.readFile(filePath, 'utf-8');
+                                            existing = JSON.parse(fileData);
+                                        } catch (e) { }
+
+                                        existing.push(submission);
+                                        await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
+
+                                        res.setHeader('Content-Type', 'application/json');
+                                        res.end(JSON.stringify({ success: true }));
+                                    } catch (error) {
+                                        res.statusCode = 500;
+                                        res.end(JSON.stringify({ error: 'Failed to process submission' }));
+                                    }
+                                });
+                                return;
+                            }
                         }
                     }
                     next();

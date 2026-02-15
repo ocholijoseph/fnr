@@ -11,6 +11,20 @@ export async function onRequest(context) {
         });
     }
 
+    if (request.method === "GET") {
+        try {
+            if (!env.SCROLL_KV) {
+                return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
+            }
+            const data = await env.SCROLL_KV.get("prayer_requests");
+            return new Response(data || "[]", {
+                headers: { "Content-Type": "application/json" }
+            });
+        } catch (error) {
+            return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
+        }
+    }
+
     if (request.method === "POST") {
         try {
             if (!env.SCROLL_KV) {

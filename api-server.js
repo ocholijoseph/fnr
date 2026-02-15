@@ -55,60 +55,88 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    if (req.url === '/api/prayer-request' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', async () => {
+    if (req.url === '/api/prayer-request') {
+        if (req.method === 'GET') {
             try {
-                const data = JSON.parse(body);
-                const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
                 const filePath = path.join(__dirname, 'prayer_requests.json');
-
-                let existing = [];
-                try {
-                    const fileData = await fs.readFile(filePath, 'utf-8');
-                    existing = JSON.parse(fileData);
-                } catch (e) { }
-
-                existing.push(submission);
-                await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
-
+                const data = await fs.readFile(filePath, 'utf-8');
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: true }));
+                res.end(data);
             } catch (error) {
-                res.statusCode = 400;
-                res.end(JSON.stringify({ error: 'Failed to process submission' }));
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify([]));
             }
-        });
-        return;
+            return;
+        }
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', async () => {
+                try {
+                    const data = JSON.parse(body);
+                    const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+                    const filePath = path.join(__dirname, 'prayer_requests.json');
+
+                    let existing = [];
+                    try {
+                        const fileData = await fs.readFile(filePath, 'utf-8');
+                        existing = JSON.parse(fileData);
+                    } catch (e) { }
+
+                    existing.push(submission);
+                    await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
+
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ success: true }));
+                } catch (error) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'Failed to process submission' }));
+                }
+            });
+            return;
+        }
     }
 
-    if (req.url === '/api/testimonies' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', async () => {
+    if (req.url === '/api/testimonies') {
+        if (req.method === 'GET') {
             try {
-                const data = JSON.parse(body);
-                const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
                 const filePath = path.join(__dirname, 'testimonies.json');
-
-                let existing = [];
-                try {
-                    const fileData = await fs.readFile(filePath, 'utf-8');
-                    existing = JSON.parse(fileData);
-                } catch (e) { }
-
-                existing.push(submission);
-                await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
-
+                const data = await fs.readFile(filePath, 'utf-8');
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: true }));
+                res.end(data);
             } catch (error) {
-                res.statusCode = 400;
-                res.end(JSON.stringify({ error: 'Failed to process submission' }));
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify([]));
             }
-        });
-        return;
+            return;
+        }
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', async () => {
+                try {
+                    const data = JSON.parse(body);
+                    const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+                    const filePath = path.join(__dirname, 'testimonies.json');
+
+                    let existing = [];
+                    try {
+                        const fileData = await fs.readFile(filePath, 'utf-8');
+                        existing = JSON.parse(fileData);
+                    } catch (e) { }
+
+                    existing.push(submission);
+                    await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
+
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ success: true }));
+                } catch (error) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'Failed to process submission' }));
+                }
+            });
+            return;
+        }
     }
 
     res.statusCode = 404;
