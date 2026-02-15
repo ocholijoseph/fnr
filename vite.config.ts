@@ -22,7 +22,11 @@ export default defineConfig(({ mode }) => ({
 
                         const adminPassword = (process.env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
                         const verifyAuthHeader = (req) => {
-                            const provided = (req.headers['x-admin-password'] || '').trim();
+                            const authHeader = req.headers['authorization'] || req.headers['x-admin-password'] || '';
+                            let provided = authHeader.trim();
+                            if (provided.startsWith('Bearer ')) {
+                                provided = provided.substring(7).trim();
+                            }
                             return provided === adminPassword;
                         };
 
@@ -30,7 +34,7 @@ export default defineConfig(({ mode }) => ({
                         if (req.method === 'OPTIONS') {
                             res.setHeader('Access-Control-Allow-Origin', '*');
                             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-                            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Password');
+                            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Password');
                             res.statusCode = 204;
                             res.end();
                             return;

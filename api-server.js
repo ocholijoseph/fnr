@@ -11,12 +11,15 @@ const SCROLL_FILE = path.join(__dirname, 'scroll.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024'; // Default password
 
 const verifyAuth = (req) => {
-    const authHeader = req.headers['x-admin-password'];
+    const authHeader = req.headers['authorization'] || req.headers['x-admin-password'];
     const expected = (process.env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
-    const provided = (authHeader || '').trim();
+    let provided = (authHeader || '').trim();
+    if (provided.startsWith('Bearer ')) {
+        provided = provided.substring(7).trim();
+    }
 
     if (provided !== expected) {
-        console.log(`[AUTH] Failed attempt. Provided: "${provided}", Expected length: ${expected.length}`);
+        console.log(`[AUTH] Failed attempt. Provided length: ${provided.length}, Expected length: ${expected.length}`);
         return false;
     }
     return true;
@@ -26,7 +29,7 @@ const server = http.createServer(async (req, res) => {
     // Add CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Password');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Password');
 
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;

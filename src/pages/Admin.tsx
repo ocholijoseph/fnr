@@ -23,7 +23,7 @@ const Admin = () => {
     const navigate = useNavigate();
 
     const getAuthHeader = () => ({
-        'X-Admin-Password': sessionStorage.getItem("admin_password") || ""
+        'Authorization': `Bearer ${sessionStorage.getItem("admin_password") || ""}`
     });
 
     const fetchConfig = async () => {
@@ -37,6 +37,15 @@ const Admin = () => {
                 const data = await response.json();
                 setOverrideEnabled(data.overrideEnabled);
                 setOverrideMessage(data.overrideMessage);
+            } else if (response.status === 401) {
+                const errData = await response.json().catch(() => ({}));
+                let diagMsg = "";
+                if (errData.diagnostic) {
+                    const { providedLength, expectedLength, hasEnv } = errData.diagnostic;
+                    diagMsg = ` (Sent: ${providedLength}, Expected: ${expectedLength}, EnvSet: ${hasEnv})`;
+                }
+                toast.error(`Unauthorized${diagMsg}. Check password.`);
+                setIsAuthenticated(false);
             } else if (response.status === 404) {
                 toast.error("API endpoint not found (404). Check Nginx config.");
             } else {
@@ -57,6 +66,10 @@ const Admin = () => {
                 fetch('/api/prayer-request', { headers: getAuthHeader() }),
                 fetch('/api/testimonies', { headers: getAuthHeader() })
             ]);
+            if (prRes.status === 401 || testRes.status === 401) {
+                setIsAuthenticated(false);
+                return;
+            }
             if (prRes.ok) setPrayerRequests(await prRes.json());
             if (testRes.ok) setTestimonies(await testRes.json());
         } catch (error) {

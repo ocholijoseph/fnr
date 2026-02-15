@@ -20,10 +20,18 @@ export async function onRequest(context) {
 
         try {
             const adminPassword = (env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
-            const authHeader = (request.headers.get("X-Admin-Password") || '').trim();
+            const authHeader = request.headers.get("Authorization") || "";
+            const provided = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
 
-            if (authHeader !== adminPassword) {
-                return new Response(JSON.stringify([]), {
+            if (provided !== adminPassword) {
+                return new Response(JSON.stringify({
+                    error: "Unauthorized",
+                    diagnostic: {
+                        providedLength: provided.length,
+                        expectedLength: adminPassword.length,
+                        hasEnv: !!env.ADMIN_PASSWORD
+                    }
+                }), {
                     status: 401,
                     headers: {
                         "Content-Type": "application/json",
