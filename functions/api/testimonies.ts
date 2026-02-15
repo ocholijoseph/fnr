@@ -6,7 +6,7 @@ export async function onRequest(context) {
             headers: {
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
-                "Access-Control-Allow-Headers": "Content-Type, X-Admin-Password",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Password",
             },
         });
     }

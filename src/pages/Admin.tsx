@@ -121,6 +121,15 @@ const Admin = () => {
 
             if (response.ok) {
                 toast.success("Settings updated successfully!");
+            } else if (response.status === 401) {
+                const errorData = await response.json().catch(() => ({}));
+                let diagMsg = "";
+                if (errorData.diagnostic) {
+                    const { providedLength, expectedLength, hasEnv } = errorData.diagnostic;
+                    diagMsg = ` (Sent: ${providedLength}, Expected: ${expectedLength}, EnvSet: ${hasEnv})`;
+                }
+                toast.error(`Unauthorized${diagMsg}. Please check your password.`);
+                setIsAuthenticated(false);
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 toast.error(errorData.error || `Failed to save settings (${response.status})`);
