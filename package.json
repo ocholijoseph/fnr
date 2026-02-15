@@ -9,7 +9,8 @@
         "build:cloudflare": "vite build",
         "build:dev": "vite build --mode development",
         "lint": "eslint .",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "start-api": "node api-server.js"
     },
     "dependencies": {
         "@hookform/resolvers": "^3.10.0",
