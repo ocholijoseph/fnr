@@ -59,11 +59,12 @@ const Admin = () => {
             if (response.ok) {
                 toast.success("Settings updated successfully!");
             } else {
-                toast.error("Failed to save settings");
+                const errorData = await response.json().catch(() => ({}));
+                toast.error(errorData.error || `Failed to save settings (${response.status})`);
             }
         } catch (error) {
             console.error("Error saving config:", error);
-            toast.error("Error connecting to CMS API");
+            toast.error("Connecting failed. Is the API server running?");
         } finally {
             setIsSaving(false);
         }
