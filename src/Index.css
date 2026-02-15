@@ -161,18 +161,23 @@ All colors MUST be HSL.
     }
 }
 
-/* Lock portrait orientation on mobile devices */
+/* Lock portrait orientation on mobile devices - maintain vertical layout in landscape */
 @media screen and (max-width: 915px) and (orientation: landscape) {
+    html {
+        width: 412px;
+        height: 915px;
+        overflow: hidden;
+    }
 
-    html,
     body {
-        transform: rotate(-90deg);
-        transform-origin: left top;
-        width: 100vh;
-        height: 100vw;
-        overflow-x: hidden;
-        position: absolute;
-        top: 100%;
-        left: 0;
+        width: 412px;
+        height: 915px;
+        overflow: hidden;
+    }
+
+    #root {
+        width: 412px;
+        height: 915px;
+        overflow: hidden;
     }
 }
