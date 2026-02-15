@@ -12,14 +12,23 @@ export async function onRequest(context) {
     }
 
     if (request.method === "GET") {
+        const corsHeaders = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+            "Access-Control-Allow-Headers": "Content-Type, X-Admin-Password",
+        };
+
         try {
-            const adminPassword = env.ADMIN_PASSWORD || 'kfmx-admin-2024';
-            const authHeader = request.headers.get("X-Admin-Password");
+            const adminPassword = (env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
+            const authHeader = (request.headers.get("X-Admin-Password") || '').trim();
 
             if (authHeader !== adminPassword) {
                 return new Response(JSON.stringify([]), {
                     status: 401,
-                    headers: { "Content-Type": "application/json" }
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...corsHeaders
+                    }
                 });
             }
 

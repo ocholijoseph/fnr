@@ -20,8 +20,21 @@ export default defineConfig(({ mode }) => ({
                         const fs = await import('fs/promises');
                         const url = req.url.split('?')[0];
 
-                        const adminPassword = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024';
-                        const verifyAuthHeader = (req) => req.headers['x-admin-password'] === adminPassword;
+                        const adminPassword = (process.env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
+                        const verifyAuthHeader = (req) => {
+                            const provided = (req.headers['x-admin-password'] || '').trim();
+                            return provided === adminPassword;
+                        };
+
+                        // Handle preflight OPTIONS requests for custom routes
+                        if (req.method === 'OPTIONS') {
+                            res.setHeader('Access-Control-Allow-Origin', '*');
+                            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+                            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Password');
+                            res.statusCode = 204;
+                            res.end();
+                            return;
+                        }
 
                         // Handler for /api/scroll
                         if (url === '/api/scroll') {
@@ -40,6 +53,7 @@ export default defineConfig(({ mode }) => ({
                             if (req.method === 'POST') {
                                 if (!verifyAuthHeader(req)) {
                                     res.statusCode = 401;
+                                    res.setHeader('Content-Type', 'application/json');
                                     res.end(JSON.stringify({ error: 'Unauthorized' }));
                                     return;
                                 }

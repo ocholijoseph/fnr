@@ -12,7 +12,14 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024'; // Defau
 
 const verifyAuth = (req) => {
     const authHeader = req.headers['x-admin-password'];
-    return authHeader === ADMIN_PASSWORD;
+    const expected = (process.env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
+    const provided = (authHeader || '').trim();
+
+    if (provided !== expected) {
+        console.log(`[AUTH] Failed attempt. Provided: "${provided}", Expected length: ${expected.length}`);
+        return false;
+    }
+    return true;
 };
 
 const server = http.createServer(async (req, res) => {

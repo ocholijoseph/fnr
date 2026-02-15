@@ -67,7 +67,8 @@ const Admin = () => {
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (password) {
-            sessionStorage.setItem("admin_password", password);
+            const trimmedPassword = password.trim();
+            sessionStorage.setItem("admin_password", trimmedPassword);
             setIsAuthenticated(true);
         }
     };
