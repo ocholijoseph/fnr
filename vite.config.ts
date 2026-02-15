@@ -16,35 +16,67 @@ export default defineConfig(({ mode }) => ({
             name: 'api-scroll',
             configureServer(server) {
                 server.middlewares.use(async (req, res, next) => {
-                    if (req.url === '/api/scroll') {
+                    if (req.url === '/api/scroll' || req.url === '/api/prayer-request' || req.url === '/api/testimonies') {
                         const fs = await import('fs/promises');
-                        const scrollPath = path.resolve(__dirname, 'scroll.json');
+                        const url = req.url.split('?')[0];
 
-                        if (req.method === 'GET') {
-                            try {
-                                const data = await fs.readFile(scrollPath, 'utf-8');
-                                res.setHeader('Content-Type', 'application/json');
-                                res.end(data);
-                            } catch (error) {
-                                res.statusCode = 404;
-                                res.end(JSON.stringify({ error: 'Not found' }));
+                        // Handler for /api/scroll
+                        if (url === '/api/scroll') {
+                            const scrollPath = path.resolve(__dirname, 'scroll.json');
+                            if (req.method === 'GET') {
+                                try {
+                                    const data = await fs.readFile(scrollPath, 'utf-8');
+                                    res.setHeader('Content-Type', 'application/json');
+                                    res.end(data);
+                                } catch (error) {
+                                    res.statusCode = 404;
+                                    res.end(JSON.stringify({ error: 'Not found' }));
+                                }
+                                return;
                             }
-                            return;
+                            if (req.method === 'POST') {
+                                let body = '';
+                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('end', async () => {
+                                    try {
+                                        await fs.writeFile(scrollPath, body, 'utf-8');
+                                        res.setHeader('Content-Type', 'application/json');
+                                        res.end(JSON.stringify({ success: true }));
+                                    } catch (error) {
+                                        res.statusCode = 500;
+                                        res.end(JSON.stringify({ error: 'Failed to write' }));
+                                    }
+                                });
+                                return;
+                            }
                         }
 
-                        if (req.method === 'POST') {
+                        // Handler for submissions
+                        if (req.method === 'POST' && (url === '/api/prayer-request' || url === '/api/testimonies')) {
+                            const fileName = url === '/api/prayer-request' ? 'prayer_requests.json' : 'testimonies.json';
+                            const filePath = path.resolve(__dirname, fileName);
+
                             let body = '';
-                            req.on('data', chunk => {
-                                body += chunk.toString();
-                            });
+                            req.on('data', chunk => { body += chunk.toString(); });
                             req.on('end', async () => {
                                 try {
-                                    await fs.writeFile(scrollPath, body, 'utf-8');
+                                    const data = JSON.parse(body);
+                                    const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+
+                                    let existing = [];
+                                    try {
+                                        const fileData = await fs.readFile(filePath, 'utf-8');
+                                        existing = JSON.parse(fileData);
+                                    } catch (e) { }
+
+                                    existing.push(submission);
+                                    await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
+
                                     res.setHeader('Content-Type', 'application/json');
                                     res.end(JSON.stringify({ success: true }));
                                 } catch (error) {
                                     res.statusCode = 500;
-                                    res.end(JSON.stringify({ error: 'Failed to write' }));
+                                    res.end(JSON.stringify({ error: 'Failed to process submission' }));
                                 }
                             });
                             return;

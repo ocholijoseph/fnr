@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PlaybackHistory } from "./PlaybackHistory";
 import { ScheduleView } from "./ScheduleView";
+import SubmissionModal from "./SubmissionModal";
 
 interface RadioPlayerProps {
     station: {
@@ -43,6 +44,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const userInteractedRef = useRef<boolean>(false);
     const [dataUsage, setDataUsage] = useState<number>(0);
     const lastDataUpdateRef = useRef<number>(Date.now());
+    const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
+    const [isTestimonyModalOpen, setIsTestimonyModalOpen] = useState(false);
 
     useEffect(() => {
         if (audioRef.current) {
@@ -553,6 +556,57 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     </DialogContent>
                 </Dialog>
             </div>
+
+            {/* Submission Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 w-full max-w-md mx-auto">
+                <Button
+                    variant="outline"
+                    onClick={() => setIsTestimonyModalOpen(true)}
+                    className="w-full sm:flex-1 h-12 gap-2 border-primary/20 hover:border-primary hover:bg-primary/5 rounded-xl transition-all"
+                >
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    Share Testimony
+                </Button>
+                <Button
+                    variant="outline"
+                    onClick={() => setIsPrayerModalOpen(true)}
+                    className="w-full sm:flex-1 h-12 gap-2 border-primary/20 hover:border-primary hover:bg-primary/5 rounded-xl transition-all"
+                >
+                    <Heart className="w-4 h-4 text-primary" />
+                    Prayer Request
+                </Button>
+            </div>
+
+            {/* Prayer Request Modal */}
+            <SubmissionModal
+                isOpen={isPrayerModalOpen}
+                onClose={() => setIsPrayerModalOpen(false)}
+                title="Submit Your Prayer Request"
+                description="Our team and community are standing with you in prayer."
+                fields={[
+                    { id: "name", label: "Full Name", type: "text", placeholder: "Your name", required: true },
+                    { id: "email", label: "Email Address", type: "email", placeholder: "your@email.com", required: true },
+                    { id: "message", label: "Prayer Request", type: "textarea", placeholder: "How can we pray for you?", required: true, minLength: 20 },
+                ]}
+                endpoint="/api/prayer-request"
+                successMessage="Your prayer request has been received. God bless you."
+            />
+
+            {/* Testimony Modal */}
+            <SubmissionModal
+                isOpen={isTestimonyModalOpen}
+                onClose={() => setIsTestimonyModalOpen(false)}
+                title="Share Your Testimony"
+                description="Give glory to God for what He has done in your life!"
+                fields={[
+                    { id: "name", label: "Full Name", type: "text", placeholder: "Your name", required: true },
+                    { id: "email", label: "Email Address", type: "email", placeholder: "your@email.com (optional)" },
+                    { id: "message", label: "Testimony Message", type: "textarea", placeholder: "What did God do for you?", required: true, minLength: 30 },
+                    { id: "allowPublicShare", label: "Allow us to share this publicly", type: "checkbox" },
+                ]}
+                endpoint="/api/testimonies"
+                successMessage="Thank you for sharing your testimony! God bless you."
+            />
         </div>
     );
 };
