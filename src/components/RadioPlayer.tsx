@@ -365,6 +365,13 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             ? `${currentTrack.artist} — ${currentTrack.title}`
             : "...A New Song!";
 
+    // Calculate dynamic duration based on text length to maintain constant speed
+    // Higher factor = slower speed. 0.15 is a good balance.
+    const animationDuration = Math.max(10, displayText.length * 0.2);
+    const marqueeStyle = {
+        animationDuration: `${animationDuration}s`,
+    };
+
     const thumbnail = currentTrack?.thumbnail || station.thumbnail;
 
     // Get connection status color and text
@@ -450,9 +457,13 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     <div className="text-sm text-muted-foreground mb-1">
                         {overrideMessage ? "Information" : "Now Playing"}
                     </div>
-                    <div className="relative overflow-hidden">
-                        <div className="whitespace-nowrap animate-marquee inline-block w-max">
-                            <span className="text-lg font-semibold">{displayText}</span>
+                    <div className="relative overflow-hidden w-full">
+                        <div
+                            className="whitespace-nowrap animate-marquee-seamless flex w-max"
+                            style={marqueeStyle}
+                        >
+                            <span className="text-lg font-semibold px-4">{displayText}</span>
+                            <span className="text-lg font-semibold px-4">{displayText}</span>
                         </div>
                     </div>
                 </div>
