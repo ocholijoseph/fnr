@@ -22,12 +22,14 @@ const Admin = () => {
                 const data = await response.json();
                 setOverrideEnabled(data.overrideEnabled);
                 setOverrideMessage(data.overrideMessage);
+            } else if (response.status === 404) {
+                toast.error("API endpoint not found (404). Check Nginx config.");
             } else {
-                toast.error("Failed to load CMS config");
+                toast.error(`API Error: ${response.status} ${response.statusText}`);
             }
         } catch (error) {
             console.error("Error fetching config:", error);
-            toast.error("Error connecting to CMS API");
+            toast.error("Connecting failed. Is the API server running?");
         } finally {
             setIsLoading(false);
         }

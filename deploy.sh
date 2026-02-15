@@ -28,6 +28,14 @@ npm run build
 echo "🔄 Restarting nginx..."
 systemctl reload nginx
 
+# Restart API server if pm2 is available
+if command -v pm2 &> /dev/null; then
+    echo "🔄 Restarting API server with PM2..."
+    pm2 reload kfmx-api || pm2 start api-server.js --name kfmx-api
+else
+    echo "⚠️  PM2 not found. Manual API server restart may be required."
+fi
+
 # Check SSL certificate status
 echo "🔒 Checking SSL certificate..."
 if [ -f "/etc/letsencrypt/live/kfmx.dreamcode.ng/fullchain.pem" ]; then

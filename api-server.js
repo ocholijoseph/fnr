@@ -28,8 +28,10 @@ const server = http.createServer(async (req, res) => {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(data);
             } catch (error) {
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: 'Not found' }));
+                // If file doesn't exist, return a default config instead of 404
+                const defaultConfig = { overrideEnabled: false, overrideMessage: "" };
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(defaultConfig));
             }
             return;
         }
