@@ -1,8 +1,25 @@
 #root {
-    max-width: 1280px;
+    width: 412px;
+    height: 915px;
     margin: 0 auto;
-    padding: 2rem;
+    overflow: hidden;
+    position: relative;
     text-align: center;
+}
+
+/* Lock portrait orientation on mobile devices - strictly maintain vertical layout */
+@media screen and (max-width: 915px) {
+
+    html,
+    body {
+        width: 412px;
+        height: 915px;
+        overflow: hidden;
+        margin: 0 auto;
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 }
 
 .logo {

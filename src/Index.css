@@ -160,24 +160,3 @@ All colors MUST be HSL.
         @apply bg-background text-foreground;
     }
 }
-
-/* Lock portrait orientation on mobile devices - maintain vertical layout in landscape */
-@media screen and (max-width: 915px) and (orientation: landscape) {
-    html {
-        width: 412px;
-        height: 915px;
-        overflow: hidden;
-    }
-
-    body {
-        width: 412px;
-        height: 915px;
-        overflow: hidden;
-    }
-
-    #root {
-        width: 412px;
-        height: 915px;
-        overflow: hidden;
-    }
-}
