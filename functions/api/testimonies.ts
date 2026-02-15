@@ -13,6 +13,16 @@ export async function onRequest(context) {
 
     if (request.method === "GET") {
         try {
+            const adminPassword = env.ADMIN_PASSWORD || 'kfmx-admin-2024';
+            const authHeader = request.headers.get("X-Admin-Password");
+
+            if (authHeader !== adminPassword) {
+                return new Response(JSON.stringify([]), {
+                    status: 401,
+                    headers: { "Content-Type": "application/json" }
+                });
+            }
+
             if (!env.SCROLL_KV) {
                 return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
             }

@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => ({
                         const fs = await import('fs/promises');
                         const url = req.url.split('?')[0];
 
+                        const adminPassword = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024';
+                        const verifyAuthHeader = (req) => req.headers['x-admin-password'] === adminPassword;
+
                         // Handler for /api/scroll
                         if (url === '/api/scroll') {
                             const scrollPath = path.resolve(__dirname, 'scroll.json');
@@ -35,6 +38,11 @@ export default defineConfig(({ mode }) => ({
                                 return;
                             }
                             if (req.method === 'POST') {
+                                if (!verifyAuthHeader(req)) {
+                                    res.statusCode = 401;
+                                    res.end(JSON.stringify({ error: 'Unauthorized' }));
+                                    return;
+                                }
                                 let body = '';
                                 req.on('data', chunk => { body += chunk.toString(); });
                                 req.on('end', async () => {
@@ -57,6 +65,11 @@ export default defineConfig(({ mode }) => ({
                             const filePath = path.resolve(__dirname, fileName);
 
                             if (req.method === 'GET') {
+                                if (!verifyAuthHeader(req)) {
+                                    res.statusCode = 401;
+                                    res.end(JSON.stringify({ error: 'Unauthorized' }));
+                                    return;
+                                }
                                 try {
                                     const data = await fs.readFile(filePath, 'utf-8');
                                     res.setHeader('Content-Type', 'application/json');

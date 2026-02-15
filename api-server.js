@@ -8,12 +8,18 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3001;
 const SCROLL_FILE = path.join(__dirname, 'scroll.json');
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024'; // Default password
+
+const verifyAuth = (req) => {
+    const authHeader = req.headers['x-admin-password'];
+    return authHeader === ADMIN_PASSWORD;
+};
 
 const server = http.createServer(async (req, res) => {
     // Add CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Password');
 
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
@@ -37,6 +43,11 @@ const server = http.createServer(async (req, res) => {
         }
 
         if (req.method === 'POST') {
+            if (!verifyAuth(req)) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                return;
+            }
             let body = '';
             req.on('data', chunk => { body += chunk.toString(); });
             req.on('end', async () => {
@@ -57,6 +68,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.url === '/api/prayer-request') {
         if (req.method === 'GET') {
+            if (!verifyAuth(req)) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                return;
+            }
             try {
                 const filePath = path.join(__dirname, 'prayer_requests.json');
                 const data = await fs.readFile(filePath, 'utf-8');
@@ -99,6 +115,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.url === '/api/testimonies') {
         if (req.method === 'GET') {
+            if (!verifyAuth(req)) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                return;
+            }
             try {
                 const filePath = path.join(__dirname, 'testimonies.json');
                 const data = await fs.readFile(filePath, 'utf-8');
@@ -138,6 +159,7 @@ const server = http.createServer(async (req, res) => {
             return;
         }
     }
+
 
     res.statusCode = 404;
     res.end(JSON.stringify({ error: 'Route not found' }));
