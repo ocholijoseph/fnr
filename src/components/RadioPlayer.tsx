@@ -27,9 +27,10 @@ interface RadioPlayerProps {
     }>;
     listenerCount?: number;
     bitrate?: number;
+    overrideMessage?: string;
 }
 
-export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128 }: RadioPlayerProps) => {
+export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128, overrideMessage }: RadioPlayerProps) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(70);
     const [isMuted, setIsMuted] = useState(false);
@@ -358,9 +359,11 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
         }
     };
 
-    const displayText = currentTrack
-        ? `${currentTrack.artist} — ${currentTrack.title}`
-        : "...A New Song!";
+    const displayText = overrideMessage
+        ? overrideMessage
+        : currentTrack
+            ? `${currentTrack.artist} — ${currentTrack.title}`
+            : "...A New Song!";
 
     const thumbnail = currentTrack?.thumbnail || station.thumbnail;
 
@@ -444,9 +447,11 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     />
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
-                    <div className="text-sm text-muted-foreground mb-1">Now Playing</div>
+                    <div className="text-sm text-muted-foreground mb-1">
+                        {overrideMessage ? "Information" : "Now Playing"}
+                    </div>
                     <div className="relative overflow-hidden">
-                        <div className="whitespace-nowrap animate-marquee">
+                        <div className="whitespace-nowrap animate-marquee inline-block w-max">
                             <span className="text-lg font-semibold">{displayText}</span>
                         </div>
                     </div>

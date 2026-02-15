@@ -21,6 +21,7 @@ const Index = () => {
     const metadataErrorCount = useRef<number>(0);
     const [listenerCount, setListenerCount] = useState<number>(0);
     const [bitrate, setBitrate] = useState<number>(128); // Default to 128kbps
+    const [scrollConfig, setScrollConfig] = useState({ overrideEnabled: false, overrideMessage: "" });
     const station = {
         title: "Kingdom FM Xtra",
         streamUrl: "https://player2.dreamcode.ng/kfmx",
@@ -195,6 +196,18 @@ const Index = () => {
         }
     }, []);
 
+    const fetchScrollConfig = useCallback(async () => {
+        try {
+            const response = await fetch('/api/scroll');
+            if (response.ok) {
+                const data = await response.json();
+                setScrollConfig(data);
+            }
+        } catch (error) {
+            console.error("Error fetching scroll config:", error);
+        }
+    }, []);
+
     useEffect(() => {
         const fetchDataAndSchedule = () => {
             fetchMetadata();
@@ -221,6 +234,12 @@ const Index = () => {
         };
     }, [fetchMetadata]);
 
+    useEffect(() => {
+        fetchScrollConfig();
+        const intervalId = setInterval(fetchScrollConfig, 20000); // Poll every 20 seconds
+        return () => clearInterval(intervalId);
+    }, [fetchScrollConfig]);
+
     return (
         <div className="h-full bg-background flex flex-col py-4 px-4 max-w-xl mx-auto">
             <RadioPlayer
@@ -230,6 +249,7 @@ const Index = () => {
                 history={history}
                 listenerCount={listenerCount}
                 bitrate={bitrate}
+                overrideMessage={scrollConfig.overrideEnabled ? scrollConfig.overrideMessage : undefined}
             />
             <Footer />
         </div>
