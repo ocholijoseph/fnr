@@ -1,0 +1,77 @@
+export async function onRequest(context) {
+    const { request, env } = context;
+
+    if (request.method === "OPTIONS") {
+        return new Response(null, {
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Password",
+            },
+        });
+    }
+
+    if (request.method === "GET") {
+        const corsHeaders = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+            "Access-Control-Allow-Headers": "Content-Type, X-Admin-Password",
+        };
+
+        try {
+            const adminPassword = (env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
+            const authHeader = request.headers.get("Authorization") || "";
+            const provided = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
+
+            if (provided !== adminPassword) {
+                return new Response(JSON.stringify({
+                    error: "Unauthorized",
+                }), {
+                    status: 401,
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...corsHeaders
+                    }
+                });
+            }
+
+            if (!env.SCROLL_KV) {
+                return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
+            }
+            const data = await env.SCROLL_KV.get("donations");
+            return new Response(data || "[]", {
+                headers: { "Content-Type": "application/json" }
+            });
+        } catch (error) {
+            return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
+        }
+    }
+
+    if (request.method === "POST") {
+        try {
+            if (!env.SCROLL_KV) {
+                return new Response(JSON.stringify({ error: "SCROLL_KV binding not found" }), { status: 500 });
+            }
+
+            const data = await request.json();
+            const donation = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+
+            const existingRaw = await env.SCROLL_KV.get("donations");
+            let existing = existingRaw ? JSON.parse(existingRaw) : [];
+
+            existing.push(donation);
+            await env.SCROLL_KV.put("donations", JSON.stringify(existing));
+
+            return new Response(JSON.stringify({ success: true }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        } catch (error) {
+            return new Response(JSON.stringify({ error: "Failed to process donation log" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+    }
+
+    return new Response("Not Found", { status: 404 });
+}

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { PlaybackHistory } from "./PlaybackHistory";
 import { ScheduleView } from "./ScheduleView";
 import SubmissionModal from "./SubmissionModal";
+import DonationModal from "./DonationModal";
 
 interface RadioPlayerProps {
     station: {
@@ -46,6 +47,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const lastDataUpdateRef = useRef<number>(Date.now());
     const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
     const [isTestimonyModalOpen, setIsTestimonyModalOpen] = useState(false);
+    const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
 
     useEffect(() => {
         if (audioRef.current) {
@@ -577,6 +579,16 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 </Button>
             </div>
 
+            <div className="flex justify-center w-full max-w-md mx-auto mt-4 px-0">
+                <Button
+                    onClick={() => setIsDonationModalOpen(true)}
+                    className="w-full h-14 gap-3 bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-lg"
+                >
+                    <Heart className="w-5 h-5 fill-white animate-pulse" />
+                    DONATE
+                </Button>
+            </div>
+
             {/* Prayer Request Modal */}
             <SubmissionModal
                 isOpen={isPrayerModalOpen}
@@ -606,6 +618,12 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 ]}
                 endpoint="/api/testimonies"
                 successMessage="Thank you for sharing your testimony! God bless you."
+            />
+
+            {/* Donation Modal */}
+            <DonationModal
+                isOpen={isDonationModalOpen}
+                onClose={() => setIsDonationModalOpen(false)}
             />
         </div>
     );

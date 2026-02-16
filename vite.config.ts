@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
             name: 'api-scroll',
             configureServer(server) {
                 server.middlewares.use(async (req, res, next) => {
-                    if (req.url === '/api/scroll' || req.url === '/api/prayer-request' || req.url === '/api/testimonies') {
+                    if (req.url === '/api/scroll' || req.url === '/api/prayer-request' || req.url === '/api/testimonies' || req.url === '/api/donations') {
                         const fs = await import('fs/promises');
                         const url = req.url.split('?')[0];
 
@@ -78,8 +78,8 @@ export default defineConfig(({ mode }) => ({
                         }
 
                         // Handler for submissions
-                        if (url === '/api/prayer-request' || url === '/api/testimonies') {
-                            const fileName = url === '/api/prayer-request' ? 'prayer_requests.json' : 'testimonies.json';
+                        if (url === '/api/prayer-request' || url === '/api/testimonies' || url === '/api/donations') {
+                            const fileName = url === '/api/prayer-request' ? 'prayer_requests.json' : url === '/api/donations' ? 'donations.json' : 'testimonies.json';
                             const filePath = path.resolve(__dirname, fileName);
 
                             if (req.method === 'GET') {

@@ -170,6 +170,36 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    if (req.url === '/api/donations') {
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', async () => {
+                try {
+                    const data = JSON.parse(body);
+                    const donation = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+                    const filePath = path.join(__dirname, 'donations.json');
+
+                    let existing = [];
+                    try {
+                        const fileData = await fs.readFile(filePath, 'utf-8');
+                        existing = JSON.parse(fileData);
+                    } catch (e) { }
+
+                    existing.push(donation);
+                    await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
+
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ success: true }));
+                } catch (error) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'Failed to process donation log' }));
+                }
+            });
+            return;
+        }
+    }
+
 
     res.statusCode = 404;
     res.end(JSON.stringify({ error: 'Route not found' }));
