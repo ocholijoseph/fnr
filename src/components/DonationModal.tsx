@@ -118,7 +118,12 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
             // Ensure iframe has highest z-index and handle mobile quirks
             handler.openIframe();
 
-            // Subtle hack: Paystack uses an iframe that might be hidden by Radix modal on mobile
+            // CRITICAL FIX FOR MOBILE: 
+            // Close our modal immediately to release Radix UI's pointer-events: none on body
+            // and release the focus trap. The Paystack iframe is already in the DOM and will stay.
+            onClose();
+
+            // Subtle hack: Paystack uses an iframe that might be hidden or non-interactive on mobile
             setTimeout(() => {
                 const iframes = document.getElementsByTagName('iframe');
                 for (let i = 0; i < iframes.length; i++) {
