@@ -18,33 +18,34 @@ interface DonationModalProps {
     onClose: () => void;
 }
 
-// Paystack script URL (V2)
-const PAYSTACK_SCRIPT_URL = "https://js.paystack.co/v2/inline.js";
+// Paystack script URL - V1 is often more stable for plain JS integrations
+const PAYSTACK_SCRIPT_URL = "https://js.paystack.co/v1/inline.js";
 
 const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [amount, setAmount] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
+    const [scriptLoaded, setScriptLoaded] = useState(false);
 
     const presetAmounts = ["1000", "2000", "5000", "10000"];
 
-    const loadScript = (src: string) => {
-        return new Promise((resolve) => {
-            if ((window as any).PaystackPop) {
-                resolve(true);
-                return;
-            }
+    // Preload script when modal is open
+    React.useEffect(() => {
+        if (isOpen && !scriptLoaded) {
             const script = document.createElement("script");
-            script.src = src;
+            script.src = PAYSTACK_SCRIPT_URL;
             script.async = true;
-            script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
+            script.onload = () => setScriptLoaded(true);
+            script.onerror = () => {
+                setScriptLoaded(false);
+                toast.error("Failed to load payment gateway");
+            };
             document.body.appendChild(script);
-        });
-    };
+        }
+    }, [isOpen, scriptLoaded]);
 
-    const handlePaystackPayment = async (e: React.FormEvent) => {
+    const handlePaystackPayment = (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!name || !email || !amount) {
@@ -58,20 +59,15 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
             return;
         }
 
+        const PaystackPop = (window as any).PaystackPop;
+        if (!PaystackPop) {
+            toast.error("Payment system not ready. Please wait a moment.");
+            return;
+        }
+
         setIsProcessing(true);
 
         try {
-            const res = await loadScript(PAYSTACK_SCRIPT_URL);
-
-            if (!res) {
-                throw new Error("Failed to load Paystack script");
-            }
-
-            const PaystackPop = (window as any).PaystackPop;
-            if (!PaystackPop) {
-                throw new Error("Paystack object not found after loading script");
-            }
-
             const handler = PaystackPop.setup({
                 key: "pk_test_86bdd5466ad3348adf0db92923e85232cb366f10",
                 email: email,
@@ -112,22 +108,32 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
                 },
                 onClose: function () {
                     setIsProcessing(false);
-                    toast.info("Transaction cancelled");
                 },
                 onCancel: function () {
                     setIsProcessing(false);
                     toast.info("Transaction cancelled");
                 },
-                callback: function (response: any) {
-                    // Fallback for older versions if needed
-                    console.log("Paystack legacy callback:", response);
-                }
             });
 
+            // Ensure iframe has highest z-index and handle mobile quirks
             handler.openIframe();
+
+            // Subtle hack: Paystack uses an iframe that might be hidden by Radix modal on mobile
+            setTimeout(() => {
+                const iframes = document.getElementsByTagName('iframe');
+                for (let i = 0; i < iframes.length; i++) {
+                    if (iframes[i].src.includes('paystack')) {
+                        iframes[i].style.zIndex = '9999999999';
+                        if (iframes[i].parentElement) {
+                            iframes[i].parentElement!.style.zIndex = '9999999999';
+                        }
+                    }
+                }
+            }, 500);
+
         } catch (error) {
             console.error("Paystack Setup Error:", error);
-            toast.error(error instanceof Error ? error.message : "An error occurred during payment setup");
+            toast.error("An error occurred during payment setup");
             setIsProcessing(false);
         }
     };
