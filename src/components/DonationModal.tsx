@@ -18,8 +18,8 @@ interface DonationModalProps {
     onClose: () => void;
 }
 
-// Paystack script URL
-const PAYSTACK_SCRIPT_URL = "https://js.paystack.co/v1/inline.js";
+// Paystack script URL (V2)
+const PAYSTACK_SCRIPT_URL = "https://js.paystack.co/v2/inline.js";
 
 const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
     const [name, setName] = useState("");
@@ -31,8 +31,13 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
 
     const loadScript = (src: string) => {
         return new Promise((resolve) => {
+            if ((window as any).PaystackPop) {
+                resolve(true);
+                return;
+            }
             const script = document.createElement("script");
             script.src = src;
+            script.async = true;
             script.onload = () => resolve(true);
             script.onerror = () => resolve(false);
             document.body.appendChild(script);
@@ -55,36 +60,39 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
 
         setIsProcessing(true);
 
-        const res = await loadScript(PAYSTACK_SCRIPT_URL);
+        try {
+            const res = await loadScript(PAYSTACK_SCRIPT_URL);
 
-        if (!res) {
-            toast.error("Failed to load Paystack. Please check your internet.");
-            setIsProcessing(false);
-            return;
-        }
+            if (!res) {
+                throw new Error("Failed to load Paystack script");
+            }
 
-        const handler = (window as any).PaystackPop.setup({
-            key: "pk_test_placeholder_key", // TODO: Replace with user provided key
-            email: email,
-            amount: amountInKobo,
-            currency: "NGN",
-            ref: `DON-${Math.floor(Math.random() * 1000000000 + 1)}`,
-            metadata: {
-                custom_fields: [
-                    {
-                        display_name: "Name",
-                        variable_name: "name",
-                        value: name,
-                    },
-                ],
-            },
-            callback: async (response: any) => {
-                console.log("Paystack Success:", response);
-                toast.success("Payment successful! Thank you for your donation.");
+            const PaystackPop = (window as any).PaystackPop;
+            if (!PaystackPop) {
+                throw new Error("Paystack object not found after loading script");
+            }
 
-                // Log to backend
-                try {
-                    await fetch("/api/donations", {
+            const handler = PaystackPop.setup({
+                key: "pk_test_86bdd5466ad3348adf0db92923e85232cb366f10",
+                email: email,
+                amount: amountInKobo,
+                currency: "NGN",
+                ref: `DON-${Math.floor(Math.random() * 1000000000 + 1)}`,
+                metadata: {
+                    custom_fields: [
+                        {
+                            display_name: "Name",
+                            variable_name: "name",
+                            value: name,
+                        },
+                    ],
+                },
+                onSuccess: function (response: any) {
+                    console.log("Paystack Success:", response);
+                    toast.success("Hallelujah! Your donation has been received. May God bless you abundantly for your generosity!");
+
+                    // Log to backend (non-blocking)
+                    fetch("/api/donations", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -93,21 +101,35 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
                             amount,
                             reference: response.reference,
                         }),
-                    });
-                } catch (err) {
-                    console.error("Failed to log donation:", err);
+                    }).catch(err => console.error("Failed to log donation:", err));
+
+                    setIsProcessing(false);
+                    onClose();
+                    // Clear form
+                    setName("");
+                    setEmail("");
+                    setAmount("");
+                },
+                onClose: function () {
+                    setIsProcessing(false);
+                    toast.info("Transaction cancelled");
+                },
+                onCancel: function () {
+                    setIsProcessing(false);
+                    toast.info("Transaction cancelled");
+                },
+                callback: function (response: any) {
+                    // Fallback for older versions if needed
+                    console.log("Paystack legacy callback:", response);
                 }
+            });
 
-                setIsProcessing(false);
-                onClose();
-            },
-            onClose: () => {
-                setIsProcessing(false);
-                toast.info("Transaction cancelled");
-            },
-        });
-
-        handler.openIframe();
+            handler.openIframe();
+        } catch (error) {
+            console.error("Paystack Setup Error:", error);
+            toast.error(error instanceof Error ? error.message : "An error occurred during payment setup");
+            setIsProcessing(false);
+        }
     };
 
     return (
