@@ -464,9 +464,9 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     />
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
-                    <div className="text-sm text-muted-foreground mb-1 font-medium flex items-center gap-1.5 capitalize">
+                    <div className="text-sm text-muted-foreground mb-1 font-medium flex items-center gap-1.5">
                         {overrideMessage ? (
-                            scrollType === "news" ? (
+                            scrollType?.toLowerCase() === "news" ? (
                                 <><Newspaper className="w-3 h-3 text-primary" /> News Updates</>
                             ) : (
                                 <><Settings className="w-3 h-3 text-primary" /> Information</>
