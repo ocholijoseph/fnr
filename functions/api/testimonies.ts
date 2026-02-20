@@ -3,7 +3,7 @@ export async function onRequest(context: any) {
 
     const corsHeaders = {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+        "Access-Control-Allow-Methods": "POST, OPTIONS, GET, PUT, DELETE",
         "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Password",
     };
 
@@ -13,12 +13,13 @@ export async function onRequest(context: any) {
         });
     }
 
+    const adminPassword = (env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
+    const authHeader = request.headers.get("Authorization") || "";
+    const provided = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
+    const isAdmin = provided === adminPassword;
+
     if (request.method === "GET") {
         try {
-            const adminPassword = (env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
-            const authHeader = request.headers.get("Authorization") || "";
-            const provided = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
-
             if (!env.SCROLL_KV) {
                 return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", ...corsHeaders } });
             }
@@ -27,7 +28,7 @@ export async function onRequest(context: any) {
             let data = dataRaw ? JSON.parse(dataRaw) : [];
 
             // If authenticated, return all
-            if (provided === adminPassword) {
+            if (isAdmin) {
                 return new Response(JSON.stringify(data), {
                     headers: { "Content-Type": "application/json", ...corsHeaders }
                 });
@@ -62,18 +63,13 @@ export async function onRequest(context: any) {
                 return new Response(JSON.stringify({ error: "Name and message are required" }), { status: 400, headers: corsHeaders });
             }
 
-            // Limit message length
-            if (data.message.length > 1000) {
-                return new Response(JSON.stringify({ error: "Testimony too long (max 1000 characters)" }), { status: 400, headers: corsHeaders });
-            }
-
             const submission = {
-                id: Date.now(),
+                id: data.id || Date.now().toString(),
                 name: data.name,
                 email: data.email || "",
                 message: data.message,
                 allow_public: data.allow_public === true || data.allowPublicShare === true,
-                createdAt: new Date().toISOString()
+                createdAt: data.createdAt || new Date().toISOString()
             };
 
             const existingRaw = await env.SCROLL_KV.get("testimonies");
@@ -82,7 +78,7 @@ export async function onRequest(context: any) {
             existing.push(submission);
             await env.SCROLL_KV.put("testimonies", JSON.stringify(existing));
 
-            return new Response(JSON.stringify({ success: true }), {
+            return new Response(JSON.stringify({ success: true, item: submission }), {
                 headers: { "Content-Type": "application/json", ...corsHeaders }
             });
         } catch (error) {
@@ -90,6 +86,69 @@ export async function onRequest(context: any) {
                 status: 400,
                 headers: { "Content-Type": "application/json", ...corsHeaders }
             });
+        }
+    }
+
+    // Admin only methods
+    if (!isAdmin) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    }
+
+    if (request.method === "PUT") {
+        try {
+            if (!env.SCROLL_KV) {
+                return new Response(JSON.stringify({ error: "KV not bound" }), { status: 500, headers: corsHeaders });
+            }
+            const body = await request.json();
+            const dataRaw = await env.SCROLL_KV.get("testimonies");
+            let data = dataRaw ? JSON.parse(dataRaw) : [];
+
+            const index = data.findIndex((item: any) => item.id.toString() === body.id.toString());
+            if (index === -1) {
+                return new Response(JSON.stringify({ error: "Testimony not found" }), { status: 404, headers: corsHeaders });
+            }
+
+            data[index] = {
+                ...data[index],
+                name: body.name,
+                email: body.email,
+                message: body.message,
+                allow_public: body.allow_public === true || body.allowPublicShare === true,
+                updatedAt: new Date().toISOString()
+            };
+
+            await env.SCROLL_KV.put("testimonies", JSON.stringify(data));
+
+            return new Response(JSON.stringify(data[index]), {
+                headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
+        } catch (error) {
+            return new Response(JSON.stringify({ error: "Failed to update testimony" }), { status: 400, headers: corsHeaders });
+        }
+    }
+
+    if (request.method === "DELETE") {
+        try {
+            if (!env.SCROLL_KV) {
+                return new Response(JSON.stringify({ error: "KV not bound" }), { status: 500, headers: corsHeaders });
+            }
+            const url = new URL(request.url);
+            const id = url.searchParams.get("id");
+            if (!id) {
+                return new Response(JSON.stringify({ error: "ID required" }), { status: 400, headers: corsHeaders });
+            }
+
+            const dataRaw = await env.SCROLL_KV.get("testimonies");
+            let data = dataRaw ? JSON.parse(dataRaw) : [];
+            const newData = data.filter((item: any) => item.id.toString() !== id.toString());
+
+            await env.SCROLL_KV.put("testimonies", JSON.stringify(newData));
+
+            return new Response(JSON.stringify({ success: true }), {
+                headers: { "Content-Type": "application/json", ...corsHeaders }
+            });
+        } catch (error) {
+            return new Response(JSON.stringify({ error: "Failed to delete testimony" }), { status: 400, headers: corsHeaders });
         }
     }
 

@@ -14,14 +14,14 @@ export default defineConfig(({ mode }) => ({
         mode === "development" && componentTagger(),
         {
             name: 'api-scroll',
-            configureServer(server) {
-                server.middlewares.use(async (req, res, next) => {
+            configureServer(server: any) {
+                server.middlewares.use(async (req: any, res: any, next: any) => {
                     if (req.url?.startsWith('/api/scroll') || req.url?.startsWith('/api/prayer-request') || req.url?.startsWith('/api/testimonies') || req.url?.startsWith('/api/donations') || req.url?.startsWith('/api/news')) {
                         const fs = await import('fs/promises');
                         const url = req.url.split('?')[0];
 
                         const adminPassword = (process.env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
-                        const verifyAuthHeader = (req) => {
+                        const verifyAuthHeader = (req: any) => {
                             const authHeader = req.headers['authorization'] || req.headers['x-admin-password'] || '';
                             let provided = authHeader.trim();
                             if (provided.startsWith('Bearer ')) {
@@ -62,7 +62,7 @@ export default defineConfig(({ mode }) => ({
                                     return;
                                 }
                                 let body = '';
-                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('data', (chunk: any) => { body += chunk.toString(); });
                                 req.on('end', async () => {
                                     try {
                                         await fs.writeFile(scrollPath, body, 'utf-8');
@@ -101,13 +101,13 @@ export default defineConfig(({ mode }) => ({
 
                             if (req.method === 'POST') {
                                 let body = '';
-                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('data', (chunk: any) => { body += chunk.toString(); });
                                 req.on('end', async () => {
                                     try {
                                         const data = JSON.parse(body);
                                         const submission = { ...data, id: Date.now().toString(), createdAt: new Date().toISOString() };
 
-                                        let existing = [];
+                                        let existing: any[] = [];
                                         try {
                                             const fileData = await fs.readFile(filePath, 'utf-8');
                                             existing = JSON.parse(fileData);
@@ -125,6 +125,61 @@ export default defineConfig(({ mode }) => ({
                                 });
                                 return;
                             }
+
+                            if (req.method === 'PUT') {
+                                let body = '';
+                                req.on('data', (chunk: any) => { body += chunk.toString(); });
+                                req.on('end', async () => {
+                                    try {
+                                        const data = JSON.parse(body);
+                                        let existing: any[] = [];
+                                        try {
+                                            const fileData = await fs.readFile(filePath, 'utf-8');
+                                            existing = JSON.parse(fileData);
+                                        } catch (e) { }
+
+                                        const index = existing.findIndex((item: any) => item.id.toString() === data.id.toString());
+                                        if (index !== -1) {
+                                            existing[index] = { ...existing[index], ...data, updatedAt: new Date().toISOString() };
+                                            await fs.writeFile(filePath, JSON.stringify(existing, null, 2), 'utf-8');
+                                            res.setHeader('Content-Type', 'application/json');
+                                            res.end(JSON.stringify(existing[index]));
+                                        } else {
+                                            res.statusCode = 404;
+                                            res.end(JSON.stringify({ error: 'Not found' }));
+                                        }
+                                    } catch (error) {
+                                        res.statusCode = 500;
+                                        res.end(JSON.stringify({ error: 'Failed' }));
+                                    }
+                                });
+                                return;
+                            }
+
+                            if (req.method === 'DELETE') {
+                                const id = new URL(req.url!, `http://${req.headers.host}`).searchParams.get('id');
+                                if (!id) {
+                                    res.statusCode = 400;
+                                    res.end(JSON.stringify({ error: 'ID required' }));
+                                    return;
+                                }
+
+                                try {
+                                    const fileData = await fs.readFile(filePath, 'utf-8');
+                                    let existing: any[] = [];
+                                    try {
+                                        existing = JSON.parse(fileData);
+                                    } catch (e) { }
+                                    const filtered = existing.filter((item: any) => item.id.toString() !== id.toString());
+                                    await fs.writeFile(filePath, JSON.stringify(filtered, null, 2), 'utf-8');
+                                    res.setHeader('Content-Type', 'application/json');
+                                    res.end(JSON.stringify({ success: true }));
+                                } catch (error) {
+                                    res.statusCode = 500;
+                                    res.end(JSON.stringify({ error: 'Failed' }));
+                                }
+                                return;
+                            }
                         }
 
                         // Handler for /api/news
@@ -138,11 +193,11 @@ export default defineConfig(({ mode }) => ({
 
                                     // If not admin, filter published
                                     if (!verifyAuthHeader(req)) {
-                                        news = news.filter(item => item.status === 'Published');
+                                        news = news.filter((item: any) => item.status === 'Published');
                                     }
 
                                     // Sort
-                                    news.sort((a, b) => {
+                                    news.sort((a: any, b: any) => {
                                         if (a.pinned && !b.pinned) return -1;
                                         if (!a.pinned && b.pinned) return 1;
                                         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -166,7 +221,7 @@ export default defineConfig(({ mode }) => ({
 
                             if (req.method === 'POST') {
                                 let body = '';
-                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('data', (chunk: any) => { body += chunk.toString(); });
                                 req.on('end', async () => {
                                     try {
                                         const bodyData = JSON.parse(body);
@@ -179,7 +234,7 @@ export default defineConfig(({ mode }) => ({
                                             createdAt: new Date().toISOString()
                                         };
 
-                                        let news = [];
+                                        let news: any[] = [];
                                         try {
                                             const dataRaw = await fs.readFile(newsPath, 'utf-8');
                                             news = JSON.parse(dataRaw);
@@ -200,14 +255,17 @@ export default defineConfig(({ mode }) => ({
 
                             if (req.method === 'PUT') {
                                 let body = '';
-                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('data', (chunk: any) => { body += chunk.toString(); });
                                 req.on('end', async () => {
                                     try {
                                         const bodyData = JSON.parse(body);
                                         const dataRaw = await fs.readFile(newsPath, 'utf-8');
-                                        let news = JSON.parse(dataRaw);
+                                        let news: any[] = [];
+                                        try {
+                                            news = JSON.parse(dataRaw);
+                                        } catch (e) { }
 
-                                        const index = news.findIndex(item => item.id === bodyData.id);
+                                        const index = news.findIndex((item: any) => item.id === bodyData.id);
                                         if (index === -1) {
                                             res.statusCode = 404;
                                             res.end(JSON.stringify({ error: 'News not found' }));
@@ -235,7 +293,7 @@ export default defineConfig(({ mode }) => ({
                             }
 
                             if (req.method === 'DELETE') {
-                                const urlObj = new URL(req.url, `http://${req.headers.host}`);
+                                const urlObj = new URL(req.url!, `http://${req.headers.host}`);
                                 const id = urlObj.searchParams.get("id");
                                 if (!id) {
                                     res.statusCode = 400;
@@ -245,9 +303,12 @@ export default defineConfig(({ mode }) => ({
 
                                 try {
                                     const dataRaw = await fs.readFile(newsPath, 'utf-8');
-                                    let news = JSON.parse(dataRaw);
-                                    news = news.filter(item => item.id !== id);
-                                    await fs.writeFile(newsPath, JSON.stringify(news, null, 2), 'utf-8');
+                                    let news: any[] = [];
+                                    try {
+                                        news = JSON.parse(dataRaw);
+                                    } catch (e) { }
+                                    const filtered = news.filter((item: any) => item.id !== id);
+                                    await fs.writeFile(newsPath, JSON.stringify(filtered, null, 2), 'utf-8');
 
                                     res.setHeader('Content-Type', 'application/json');
                                     res.end(JSON.stringify({ success: true }));

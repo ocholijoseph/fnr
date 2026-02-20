@@ -29,6 +29,9 @@ const Admin = () => {
     const [isNewsDialogOpen, setIsNewsDialogOpen] = useState(false);
     const [editingNews, setEditingNews] = useState<any>(null);
     const [newsForm, setNewsForm] = useState({ title: "", content: "", status: "Published", pinned: false });
+    const [isTestimonyDialogOpen, setIsTestimonyDialogOpen] = useState(false);
+    const [editingTestimony, setEditingTestimony] = useState<any>(null);
+    const [testimonyForm, setTestimonyForm] = useState({ name: "", email: "", message: "", allow_public: false });
     const navigate = useNavigate();
 
     const getAuthHeader = () => ({
@@ -136,6 +139,58 @@ const Admin = () => {
         setEditingNews(item);
         setNewsForm({ title: item.title, content: item.content, status: item.status, pinned: item.pinned });
         setIsNewsDialogOpen(true);
+    };
+
+    const handleSaveTestimony = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/testimonies', {
+                method: "PUT",
+                headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+                body: JSON.stringify({ ...testimonyForm, id: editingTestimony.id })
+            });
+            if (response.ok) {
+                toast.success("Testimony updated successfully");
+                setIsTestimonyDialogOpen(false);
+                setEditingTestimony(null);
+                fetchSubmissions();
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                toast.error(errData.error || "Failed to update testimony");
+            }
+        } catch (error) {
+            toast.error("Error saving testimony");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteTestimony = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this testimony?")) return;
+        try {
+            const response = await fetch(`/api/testimonies?id=${id}`, {
+                method: "DELETE",
+                headers: getAuthHeader()
+            });
+            if (response.ok) {
+                toast.success("Testimony deleted");
+                fetchSubmissions();
+            }
+        } catch (error) {
+            toast.error("Error deleting testimony");
+        }
+    };
+
+    const openEditTestimony = (item: any) => {
+        setEditingTestimony(item);
+        setTestimonyForm({
+            name: item.name,
+            email: item.email || "",
+            message: item.message,
+            allow_public: item.allow_public || item.allowPublicShare || false
+        });
+        setIsTestimonyDialogOpen(true);
     };
 
     const handleLogin = (e: React.FormEvent) => {
@@ -412,7 +467,27 @@ const Admin = () => {
                                                         <span className="font-mono text-[10px]">{test.email || "No Email"}</span>
                                                     </div>
                                                 </div>
-                                                <CardTitle className="text-lg">{test.name}</CardTitle>
+                                                <div className="flex justify-between items-center">
+                                                    <CardTitle className="text-lg">{test.name}</CardTitle>
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                                            onClick={() => openEditTestimony(test)}
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                            onClick={() => handleDeleteTestimony(test.id)}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </CardHeader>
                                             <CardContent>
                                                 <p className="text-sm whitespace-pre-wrap">{test.message}</p>
@@ -519,6 +594,58 @@ const Admin = () => {
                     )}
                 </div>
             </div>
+            {/* Edit Testimony Dialog */}
+            <Dialog open={isTestimonyDialogOpen} onOpenChange={setIsTestimonyDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Edit Testimony</DialogTitle>
+                        <DialogDescription>Update the details of this testimony.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSaveTestimony} className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="test-name">Name</Label>
+                            <Input
+                                id="test-name"
+                                value={testimonyForm.name}
+                                onChange={(e) => setTestimonyForm({ ...testimonyForm, name: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="test-email">Email</Label>
+                            <Input
+                                id="test-email"
+                                type="email"
+                                value={testimonyForm.email}
+                                onChange={(e) => setTestimonyForm({ ...testimonyForm, email: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="test-message">Message</Label>
+                            <Textarea
+                                id="test-message"
+                                value={testimonyForm.message}
+                                onChange={(e) => setTestimonyForm({ ...testimonyForm, message: e.target.value })}
+                                required
+                                className="min-h-[150px]"
+                            />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                                id="test-public"
+                                checked={testimonyForm.allow_public}
+                                onCheckedChange={(checked) => setTestimonyForm({ ...testimonyForm, allow_public: !!checked })}
+                            />
+                            <Label htmlFor="test-public" className="text-sm font-normal">Allow public sharing</Label>
+                        </div>
+                        <DialogFooter className="pt-4">
+                            <Button type="button" variant="outline" onClick={() => setIsTestimonyDialogOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isLoading}>{isLoading ? "Saving..." : "Save Changes"}</Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
         </div>
     );
 };
