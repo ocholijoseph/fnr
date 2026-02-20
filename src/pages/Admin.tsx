@@ -161,8 +161,8 @@ const Admin = () => {
     }, [isAuthenticated]);
 
     const handleSave = async () => {
-        if (overrideMessage.length > 300) {
-            toast.error("Message too long (max 300 characters)");
+        if (overrideMessage.length > 2000) {
+            toast.error("Message too long (max 2000 characters)");
             return;
         }
 
@@ -331,10 +331,10 @@ const Admin = () => {
                                                 value={overrideMessage}
                                                 onChange={(e) => setOverrideMessage(e.target.value)}
                                                 className="min-h-[120px] resize-none"
-                                                maxLength={300}
+                                                maxLength={2000}
                                             />
                                             <div className="text-right text-xs text-muted-foreground">
-                                                {overrideMessage.length}/300 characters
+                                                {overrideMessage.length}/2000 characters
                                             </div>
                                         </div>
                                     </div>

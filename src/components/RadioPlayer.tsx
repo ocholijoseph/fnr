@@ -376,8 +376,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             : "...A New Song!";
 
     // Calculate dynamic duration based on text length to maintain constant speed
-    // Higher factor = slower speed. 0.15 is a good balance.
-    const animationDuration = Math.max(10, displayText.length * 0.2);
+    // Higher factor = slower speed. 0.15 is a good balance for long text.
+    const animationDuration = Math.max(10, displayText.length * 0.15);
     const marqueeStyle = {
         animationDuration: `${animationDuration}s`,
     };
@@ -478,8 +478,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                             className="whitespace-nowrap animate-marquee-seamless flex w-max"
                             style={marqueeStyle}
                         >
-                            <span className="text-lg font-semibold px-4">{displayText}</span>
-                            <span className="text-lg font-semibold px-4">{displayText}</span>
+                            <span className="text-lg font-semibold px-12">{displayText}</span>
+                            <span className="text-lg font-semibold px-12">{displayText}</span>
                         </div>
                     </div>
                 </div>

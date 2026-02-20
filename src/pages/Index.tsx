@@ -215,7 +215,8 @@ const Index = () => {
                                 .map((item: any) => item.title);
 
                             if (publishedNews.length > 0) {
-                                setNewsMessage("NEWS: " + publishedNews.join(" | "));
+                                // Add extra space at the end of the news message for better marquee separation
+                                setNewsMessage("NEWS: " + publishedNews.join(" | ") + "          ");
                             } else {
                                 setNewsMessage("Stay tuned for latest updates!");
                             }
