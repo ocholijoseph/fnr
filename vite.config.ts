@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
             name: 'api-scroll',
             configureServer(server) {
                 server.middlewares.use(async (req, res, next) => {
-                    if (req.url === '/api/scroll' || req.url === '/api/prayer-request' || req.url === '/api/testimonies' || req.url === '/api/donations') {
+                    if (req.url?.startsWith('/api/scroll') || req.url?.startsWith('/api/prayer-request') || req.url?.startsWith('/api/testimonies') || req.url?.startsWith('/api/donations') || req.url?.startsWith('/api/news')) {
                         const fs = await import('fs/promises');
                         const url = req.url.split('?')[0];
 
@@ -105,7 +105,7 @@ export default defineConfig(({ mode }) => ({
                                 req.on('end', async () => {
                                     try {
                                         const data = JSON.parse(body);
-                                        const submission = { ...data, id: Date.now(), createdAt: new Date().toISOString() };
+                                        const submission = { ...data, id: Date.now().toString(), createdAt: new Date().toISOString() };
 
                                         let existing = [];
                                         try {
@@ -123,6 +123,138 @@ export default defineConfig(({ mode }) => ({
                                         res.end(JSON.stringify({ error: 'Failed to process submission' }));
                                     }
                                 });
+                                return;
+                            }
+                        }
+
+                        // Handler for /api/news
+                        if (url === '/api/news') {
+                            const newsPath = path.resolve(__dirname, 'news.json');
+
+                            if (req.method === 'GET') {
+                                try {
+                                    const dataRaw = await fs.readFile(newsPath, 'utf-8');
+                                    let news = JSON.parse(dataRaw);
+
+                                    // If not admin, filter published
+                                    if (!verifyAuthHeader(req)) {
+                                        news = news.filter(item => item.status === 'Published');
+                                    }
+
+                                    // Sort
+                                    news.sort((a, b) => {
+                                        if (a.pinned && !b.pinned) return -1;
+                                        if (!a.pinned && b.pinned) return 1;
+                                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                                    });
+
+                                    res.setHeader('Content-Type', 'application/json');
+                                    res.end(JSON.stringify(news));
+                                } catch (error) {
+                                    res.setHeader('Content-Type', 'application/json');
+                                    res.end(JSON.stringify([]));
+                                }
+                                return;
+                            }
+
+                            if (!verifyAuthHeader(req)) {
+                                res.statusCode = 401;
+                                res.setHeader('Content-Type', 'application/json');
+                                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                                return;
+                            }
+
+                            if (req.method === 'POST') {
+                                let body = '';
+                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('end', async () => {
+                                    try {
+                                        const bodyData = JSON.parse(body);
+                                        const newItem = {
+                                            id: Date.now().toString(),
+                                            title: bodyData.title,
+                                            content: bodyData.content,
+                                            status: bodyData.status || "Draft",
+                                            pinned: !!bodyData.pinned,
+                                            createdAt: new Date().toISOString()
+                                        };
+
+                                        let news = [];
+                                        try {
+                                            const dataRaw = await fs.readFile(newsPath, 'utf-8');
+                                            news = JSON.parse(dataRaw);
+                                        } catch (e) { }
+
+                                        news.push(newItem);
+                                        await fs.writeFile(newsPath, JSON.stringify(news, null, 2), 'utf-8');
+
+                                        res.setHeader('Content-Type', 'application/json');
+                                        res.end(JSON.stringify(newItem));
+                                    } catch (error) {
+                                        res.statusCode = 500;
+                                        res.end(JSON.stringify({ error: 'Failed to create news' }));
+                                    }
+                                });
+                                return;
+                            }
+
+                            if (req.method === 'PUT') {
+                                let body = '';
+                                req.on('data', chunk => { body += chunk.toString(); });
+                                req.on('end', async () => {
+                                    try {
+                                        const bodyData = JSON.parse(body);
+                                        const dataRaw = await fs.readFile(newsPath, 'utf-8');
+                                        let news = JSON.parse(dataRaw);
+
+                                        const index = news.findIndex(item => item.id === bodyData.id);
+                                        if (index === -1) {
+                                            res.statusCode = 404;
+                                            res.end(JSON.stringify({ error: 'News not found' }));
+                                            return;
+                                        }
+
+                                        news[index] = {
+                                            ...news[index],
+                                            title: bodyData.title,
+                                            content: bodyData.content,
+                                            status: bodyData.status,
+                                            pinned: !!bodyData.pinned,
+                                            updatedAt: new Date().toISOString()
+                                        };
+
+                                        await fs.writeFile(newsPath, JSON.stringify(news, null, 2), 'utf-8');
+                                        res.setHeader('Content-Type', 'application/json');
+                                        res.end(JSON.stringify(news[index]));
+                                    } catch (error) {
+                                        res.statusCode = 500;
+                                        res.end(JSON.stringify({ error: 'Failed to update news' }));
+                                    }
+                                });
+                                return;
+                            }
+
+                            if (req.method === 'DELETE') {
+                                const urlObj = new URL(req.url, `http://${req.headers.host}`);
+                                const id = urlObj.searchParams.get("id");
+                                if (!id) {
+                                    res.statusCode = 400;
+                                    res.end(JSON.stringify({ error: 'ID required' }));
+                                    return;
+                                }
+
+                                try {
+                                    const dataRaw = await fs.readFile(newsPath, 'utf-8');
+                                    let news = JSON.parse(dataRaw);
+                                    news = news.filter(item => item.id !== id);
+                                    await fs.writeFile(newsPath, JSON.stringify(news, null, 2), 'utf-8');
+
+                                    res.setHeader('Content-Type', 'application/json');
+                                    res.end(JSON.stringify({ success: true }));
+                                } catch (error) {
+                                    res.statusCode = 500;
+                                    res.end(JSON.stringify({ error: 'Failed to delete news' }));
+                                }
                                 return;
                             }
                         }

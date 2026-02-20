@@ -1,16 +1,15 @@
-export async function onRequest(context) {
+export async function onRequest(context: any) {
     const { request, env } = context;
-    const url = new URL(request.url);
 
-    // In Cloudflare, we'd ideally use KV. 
-    // For a basic mock that matches the user's current static deployment:
+    const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Password",
+    };
+
     if (request.method === "OPTIONS") {
         return new Response(null, {
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Password",
-            },
+            headers: corsHeaders,
         });
     }
 
@@ -19,36 +18,32 @@ export async function onRequest(context) {
             if (!env.SCROLL_KV) {
                 throw new Error("SCROLL_KV namespace not bound");
             }
-            const data = await env.SCROLL_KV.get("config");
-            if (!data) {
+            const dataRaw = await env.SCROLL_KV.get("config");
+            if (!dataRaw) {
                 // Return default if no config exists yet
                 return new Response(JSON.stringify({
                     overrideEnabled: false,
-                    overrideMessage: ""
+                    overrideMessage: "",
+                    scrollType: "information"
                 }), {
-                    headers: { "Content-Type": "application/json" }
+                    headers: { "Content-Type": "application/json", ...corsHeaders }
                 });
             }
-            return new Response(data, {
-                headers: { "Content-Type": "application/json" }
+
+            return new Response(dataRaw, {
+                headers: { "Content-Type": "application/json", ...corsHeaders }
             });
         } catch (error) {
             return new Response(JSON.stringify({
-                error: "Persistence requires KV storage on Cloudflare. Please configure KV binding 'SCROLL_KV' in Dash."
+                error: (error as Error).message || "Connection error"
             }), {
                 status: 400,
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json", ...corsHeaders }
             });
         }
     }
 
     if (request.method === "POST") {
-        const corsHeaders = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, X-Admin-Password",
-        };
-
         try {
             const adminPassword = (env.ADMIN_PASSWORD || 'kfmx-admin-2024').trim();
             const authHeader = request.headers.get("Authorization") || "";
@@ -79,17 +74,17 @@ export async function onRequest(context) {
             JSON.parse(body);
             await env.SCROLL_KV.put("config", body);
             return new Response(JSON.stringify({ success: true }), {
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json", ...corsHeaders }
             });
         } catch (error) {
             return new Response(JSON.stringify({
-                error: "Persistence requires KV storage on Cloudflare. Please configure KV binding 'SCROLL_KV' to enable saves."
+                error: (error as Error).message || "Failed to save settings"
             }), {
                 status: 400,
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json", ...corsHeaders }
             });
         }
     }
 
-    return new Response("Not Found", { status: 404 });
+    return new Response("Not Found", { status: 404, headers: corsHeaders });
 }

@@ -21,7 +21,8 @@ const Index = () => {
     const metadataErrorCount = useRef<number>(0);
     const [listenerCount, setListenerCount] = useState<number>(0);
     const [bitrate, setBitrate] = useState<number>(128); // Default to 128kbps
-    const [scrollConfig, setScrollConfig] = useState({ overrideEnabled: false, overrideMessage: "" });
+    const [scrollConfig, setScrollConfig] = useState<{ overrideEnabled: boolean; overrideMessage: string; scrollType?: "information" | "news" }>({ overrideEnabled: false, overrideMessage: "", scrollType: "information" });
+    const [newsMessage, setNewsMessage] = useState("");
     const station = {
         title: "Kingdom FM Xtra",
         streamUrl: "https://player2.dreamcode.ng/kfmx",
@@ -202,6 +203,27 @@ const Index = () => {
             if (response.ok) {
                 const data = await response.json();
                 setScrollConfig(data);
+
+                // If News is selected, fetch news items to build the message
+                if (data.scrollType === "news" && data.overrideEnabled) {
+                    try {
+                        const newsRes = await fetch('/api/news');
+                        if (newsRes.ok) {
+                            const newsData = await newsRes.json();
+                            const publishedNews = newsData
+                                .filter((item: any) => item.status === "Published")
+                                .map((item: any) => item.title);
+
+                            if (publishedNews.length > 0) {
+                                setNewsMessage("NEWS: " + publishedNews.join(" | "));
+                            } else {
+                                setNewsMessage("Stay tuned for latest updates!");
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Error fetching news for scroll:", err);
+                    }
+                }
             }
         } catch (error) {
             console.error("Error fetching scroll config:", error);
@@ -249,7 +271,11 @@ const Index = () => {
                 history={history}
                 listenerCount={listenerCount}
                 bitrate={bitrate}
-                overrideMessage={scrollConfig.overrideEnabled ? scrollConfig.overrideMessage : undefined}
+                overrideMessage={
+                    scrollConfig.overrideEnabled
+                        ? (scrollConfig.scrollType === "news" ? newsMessage : scrollConfig.overrideMessage)
+                        : undefined
+                }
             />
             <Footer />
         </div>
