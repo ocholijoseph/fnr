@@ -241,7 +241,7 @@ const Index = () => {
     }, [fetchScrollConfig]);
 
     return (
-        <div className="h-full bg-background flex flex-col py-4 px-4 max-w-xl mx-auto">
+        <div className="h-full w-full bg-background flex flex-col py-4 px-4">
             <RadioPlayer
                 station={station}
                 currentTrack={currentTrack}

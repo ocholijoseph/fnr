@@ -1,24 +1,75 @@
-#root {
-    width: 412px;
-    height: 915px;
-    margin: 0 auto;
-    overflow: hidden;
-    position: relative;
-    text-align: center;
+:root {
+    --base-width: 412px;
+    --base-height: 915px;
 }
 
-/* Strictly maintain vertical layout on all mobile screens */
+#root {
+    width: var(--base-width);
+    height: var(--base-height);
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #000;
+    box-shadow: 0 0 100px rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+}
+
+/* Strictly maintain vertical layout on all screens */
 html,
 body {
-    width: 412px !important;
-    height: 915px !important;
+    width: 100vw !important;
+    height: 100vh !important;
     overflow: hidden !important;
-    margin: 0 auto !important;
-    position: fixed !important;
-    left: 50% !important;
-    top: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    background-color: #000;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #000 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    touch-action: pan-y;
+    -webkit-text-size-adjust: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+/* Counter-rotation UI: Keep the app upright even if the device is rotated */
+@media screen and (orientation: landscape) {
+
+    html,
+    body {
+        /* Ensure no scrolling on the container during rotation */
+        overflow: hidden !important;
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    #root {
+        /* Rotate the entire app -90 degrees to counter the physical rotation */
+        /* Then scale it to fit the new height (which was the width) */
+        transform: translate(-50%, -50%) rotate(-90deg) scale(calc(100vw / var(--base-height)));
+
+        /* Swap dimensions for the container logic but the content stays 412x915 */
+        width: var(--base-width);
+        height: var(--base-height);
+
+        /* Disable transition during rotation for instant 'lock' feel */
+        transition: none;
+    }
+}
+
+/* Base scaling for Portrait */
+@media screen and (orientation: portrait) {
+    #root {
+        transform: translate(-50%, -50%) scale(min(calc(100vw / var(--base-width)), calc(100vh / var(--base-height))));
+    }
 }
 
 .logo {
