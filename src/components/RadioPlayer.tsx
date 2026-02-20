@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart, MessageSquareText } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart, MessageSquareText, Newspaper, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -32,9 +32,10 @@ interface RadioPlayerProps {
     listenerCount?: number;
     bitrate?: number;
     overrideMessage?: string;
+    scrollType?: "information" | "news";
 }
 
-export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128, overrideMessage }: RadioPlayerProps) => {
+export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128, overrideMessage, scrollType = "information" }: RadioPlayerProps) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(70);
     const [isMuted, setIsMuted] = useState(false);
@@ -463,8 +464,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     />
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
-                    <div className="text-sm text-muted-foreground mb-1">
-                        {overrideMessage ? "Information" : "Now Playing"}
+                    <div className="text-sm text-muted-foreground mb-1 font-medium flex items-center gap-1.5 capitalize">
+                        {overrideMessage ? (
+                            scrollType === "news" ? (
+                                <><Newspaper className="w-3 h-3 text-primary" /> News Updates</>
+                            ) : (
+                                <><Settings className="w-3 h-3 text-primary" /> Information</>
+                            )
+                        ) : "Now Playing"}
                     </div>
                     <div className="relative overflow-hidden w-full">
                         <div

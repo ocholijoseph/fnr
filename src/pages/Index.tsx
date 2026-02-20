@@ -205,7 +205,7 @@ const Index = () => {
                 setScrollConfig(data);
 
                 // If News is selected, fetch news items to build the message
-                if (data.scrollType === "news" && data.overrideEnabled) {
+                if (data.scrollType === "news") {
                     try {
                         const newsRes = await fetch('/api/news');
                         if (newsRes.ok) {
@@ -223,6 +223,8 @@ const Index = () => {
                     } catch (err) {
                         console.error("Error fetching news for scroll:", err);
                     }
+                } else {
+                    setNewsMessage("");
                 }
             }
         } catch (error) {
@@ -273,9 +275,10 @@ const Index = () => {
                 bitrate={bitrate}
                 overrideMessage={
                     scrollConfig.overrideEnabled
-                        ? (scrollConfig.scrollType === "news" ? newsMessage : scrollConfig.overrideMessage)
+                        ? (scrollConfig.scrollType === "news" ? (newsMessage || "NEWS: Fetching latest updates...") : scrollConfig.overrideMessage)
                         : undefined
                 }
+                scrollType={scrollConfig.scrollType}
             />
             <Footer />
         </div>
