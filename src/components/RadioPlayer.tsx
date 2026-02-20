@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -7,6 +7,8 @@ import { PlaybackHistory } from "./PlaybackHistory";
 import { ScheduleView } from "./ScheduleView";
 import SubmissionModal from "./SubmissionModal";
 import DonationModal from "./DonationModal";
+import SegmentedSwitch from "./SegmentedSwitch";
+import ReadTestimoniesModal from "./ReadTestimoniesModal";
 
 interface RadioPlayerProps {
     station: {
@@ -47,7 +49,9 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const lastDataUpdateRef = useRef<number>(Date.now());
     const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
     const [isTestimonyModalOpen, setIsTestimonyModalOpen] = useState(false);
+    const [isReadTestimoniesModalOpen, setIsReadTestimoniesModalOpen] = useState(false);
     const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
+    const [testimonyToggle, setTestimonyToggle] = useState("share");
 
     useEffect(() => {
         if (audioRef.current) {
@@ -560,23 +564,35 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             </div>
 
             {/* Submission Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 w-full max-w-md mx-auto">
-                <Button
-                    variant="outline"
-                    onClick={() => setIsTestimonyModalOpen(true)}
-                    className="w-full sm:flex-1 h-12 gap-2 border-primary/20 hover:border-primary hover:bg-primary/5 rounded-xl transition-all"
-                >
-                    <MessageSquare className="w-4 h-4 text-primary" />
-                    Share Testimony
-                </Button>
-                <Button
-                    variant="outline"
-                    onClick={() => setIsPrayerModalOpen(true)}
-                    className="w-full sm:flex-1 h-12 gap-2 border-primary/20 hover:border-primary hover:bg-primary/5 rounded-xl transition-all"
-                >
-                    <Heart className="w-4 h-4 text-primary" />
-                    Prayer Request
-                </Button>
+            <div className="flex flex-col items-center justify-center gap-4 mt-8 w-full max-w-md mx-auto">
+                <div className="w-full space-y-4">
+                    <SegmentedSwitch
+                        options={[
+                            { label: "Share Testimony", value: "share" },
+                            { label: "Read Testimonies", value: "read" }
+                        ]}
+                        activeValue={testimonyToggle}
+                        onChange={(val) => {
+                            setTestimonyToggle(val);
+                            if (val === "share") {
+                                setIsTestimonyModalOpen(true);
+                            } else {
+                                setIsReadTestimoniesModalOpen(true);
+                            }
+                            // Reset back to share after a small delay so it's ready for next time
+                            setTimeout(() => setTestimonyToggle("share"), 500);
+                        }}
+                    />
+
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsPrayerModalOpen(true)}
+                        className="w-full h-12 gap-2 border-primary/20 hover:border-primary hover:bg-primary/5 rounded-xl transition-all"
+                    >
+                        <Heart className="w-4 h-4 text-primary" />
+                        Prayer Request
+                    </Button>
+                </div>
             </div>
 
             <div className="flex justify-center w-full max-w-md mx-auto mt-4 px-0">
@@ -604,7 +620,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 successMessage="Your prayer request has been received. God bless you."
             />
 
-            {/* Testimony Modal */}
+            {/* Testimony Submission Modal */}
             <SubmissionModal
                 isOpen={isTestimonyModalOpen}
                 onClose={() => setIsTestimonyModalOpen(false)}
@@ -613,12 +629,19 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 fields={[
                     { id: "name", label: "Full Name", type: "text", placeholder: "Your name", required: true },
                     { id: "email", label: "Email Address", type: "email", placeholder: "your@email.com (optional)" },
-                    { id: "message", label: "Testimony Message", type: "textarea", placeholder: "What did God do for you?", required: true, minLength: 30 },
-                    { id: "allowPublicShare", label: "Allow us to share this publicly", type: "checkbox" },
+                    { id: "message", label: "Testimony Message", type: "textarea", placeholder: "What did God do for you? (Max 1000 chars)", required: true, minLength: 30 },
+                    { id: "allow_public", label: "Allow us to share this publicly", type: "checkbox" },
                 ]}
                 endpoint="/api/testimonies"
                 successMessage="Thank you for sharing your testimony! God bless you."
             />
+
+            {/* Read Testimonies Modal */}
+            <ReadTestimoniesModal
+                isOpen={isReadTestimoniesModalOpen}
+                onClose={() => setIsReadTestimoniesModalOpen(false)}
+            />
+
 
             {/* Donation Modal */}
             <DonationModal
