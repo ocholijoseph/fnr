@@ -28,10 +28,10 @@ sudo apt install -y nginx certbot python3-certbot-nginx
 ```
 
 ### 1.3 Application Deployment
-1. **Transfer code:** You can use `git clone` or SFTP your project folders.
-2. **Build locally/on server:**
+1. **Transfer code:** You can use `git clone` or SFTP your folder to `/myNewDock/fnr`.
+2. **Build on the server:**
    ```bash
-   cd /var/www/freedom-naija-radio
+   cd /myNewDock/fnr
    npm install
    npm run build
    ```
@@ -45,14 +45,14 @@ server {
     listen 80;
     server_name player.dreamcode.ng;
 
-    root /var/www/freedom-naija-radio/dist;
+    root /myNewDock/fnr/dist;
     index index.html;
 
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # Proxy to Node.js API Server
+    # Proxy to Node.js API Server (Port 3001)
     location /api/ {
         proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
@@ -62,7 +62,7 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
-    # IMPORTANT: Proxy for Icecast Metadata (to avoid CORS/HTTPS issues)
+    # Proxy for Icecast Metadata (to avoid CORS/HTTPS issues)
     location /api/icecast/ {
         proxy_pass http://69.197.134.188:8000/;
         proxy_set_header Host $host;
@@ -84,7 +84,7 @@ To keep the administrative features (News, Scroll Text) working:
 sudo npm install -g pm2
 
 # Start the API server
-cd /var/www/freedom-naija-radio
+cd /myNewDock/fnr
 pm2 start api-server.js --name "fnr-api"
 
 # Save PM2 list to restart on reboot

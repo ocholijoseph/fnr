@@ -7,8 +7,8 @@ set -e  # Exit on any error
 
 echo "🚀 Starting Freedom Naija Radio deployment..."
 
-# Navigate to project directory (assuming standard /var/www/ or provided path)
-# cd /var/www/freedom-naija-radio
+# Navigate to project directory
+cd /myNewDock/fnr
 
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then
