@@ -26,7 +26,7 @@ npm run build
 
 # Restart nginx to apply configuration changes
 echo "🔄 Restarting nginx..."
-sudo systemctl reload nginx
+sudo systemctl restart nginx
 
 # Restart API server if pm2 is available
 if command -v pm2 &> /dev/null; then
