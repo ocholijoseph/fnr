@@ -149,7 +149,7 @@ const DonationModal = ({ isOpen, onClose }: DonationModalProps) => {
                 <DialogHeader>
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         <Heart className="w-5 h-5 text-primary fill-primary" />
-                        Support Kingdom FM Xtra
+                        Support Freedom Naija Radio
                     </DialogTitle>
                     <DialogDescription className="text-muted-foreground">
                         Your donations help us keep the word of God on air.

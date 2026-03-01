@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Freedom Naija Radio</string>
+    <string name="title_activity_main">Freedom Naija Radio</string>
+    <string name="package_name">com.freedomnaijaradio.app</string>
+    <string name="custom_url_scheme">com.freedomnaijaradio.app</string>
+</resources>

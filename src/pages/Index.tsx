@@ -24,9 +24,9 @@ const Index = () => {
     const [scrollConfig, setScrollConfig] = useState<{ overrideEnabled: boolean; overrideMessage: string; scrollType?: "information" | "news" }>({ overrideEnabled: false, overrideMessage: "", scrollType: "information" });
     const [newsMessage, setNewsMessage] = useState("");
     const station = {
-        title: "Kingdom FM Xtra",
-        streamUrl: "https://player2.dreamcode.ng/kfmx",
-        thumbnail: "/placeholder.svg",
+        title: "Freedom Naija Radio",
+        streamUrl: "http://69.197.134.188:8000/live",
+        thumbnail: "/fulllogo.png",
         isLive: true,
     };
 
@@ -46,7 +46,7 @@ const Index = () => {
         } catch (error) {
             console.error("Error fetching artwork:", error);
         }
-        return "/placeholder.svg";
+        return "/fulllogo.png";
     };
 
     const fetchMetadata = useCallback(async () => {
@@ -88,9 +88,9 @@ const Index = () => {
             if (Array.isArray(source)) {
                 // Filter for sources that likely match our station
                 const candidates = source.filter((s: { listenurl?: string; server_name?: string }) =>
-                    s.listenurl?.includes('radio2') ||
-                    s.server_name?.includes('Kingdom FM') ||
-                    s.server_name?.includes('KFMX')
+                    s.listenurl?.includes('/live') ||
+                    s.server_name?.toLowerCase().includes('freedom') ||
+                    s.server_name?.toLowerCase().includes('fnr')
                 );
 
                 if (candidates.length > 0) {

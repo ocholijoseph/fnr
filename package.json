@@ -10,9 +10,11 @@
         "build:dev": "vite build --mode development",
         "lint": "eslint .",
         "preview": "vite preview",
-        "start-api": "node api-server.js"
+        "start-api": "node api-server.js",
+        "cap": "cap"
     },
     "dependencies": {
+        "@capacitor/core": "^6.1.2",
         "@hookform/resolvers": "^3.10.0",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -64,6 +66,8 @@
         "zod": "^3.25.76"
     },
     "devDependencies": {
+        "@capacitor/cli": "^6.1.2",
+        "@capacitor/android": "^6.1.2",
         "@eslint/js": "^9.32.0",
         "@tailwindcss/typography": "^0.5.16",
         "@types/node": "^22.16.5",

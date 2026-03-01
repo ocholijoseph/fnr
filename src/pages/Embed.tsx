@@ -7,16 +7,16 @@ const Embed = () => {
 
     // Mock data - in production, fetch based on stationId
     const station = {
-        title: "Kingdom FM Xtra",
-        streamUrl: "https://player2.dreamcode.ng/kfmx",
-        thumbnail: "/placeholder.svg",
+        title: "Freedom Naija Radio",
+        streamUrl: "http://69.197.134.188:8000/live",
+        thumbnail: "/fulllogo.png",
         isLive: true,
     };
 
     const currentTrack = {
         title: "Electric Dreams",
         artist: "Midnight Riders",
-        thumbnail: "/placeholder.svg",
+        thumbnail: "/fulllogo.png",
     };
 
     return (

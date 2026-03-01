@@ -67,7 +67,7 @@ const mockNewsData: NewsResponse[] = [
   {
     id: 1,
     documentId: "mock-1",
-    title: "Kingdom FM Xtra Launches New Mobile App",
+    title: "Freedom Naija Radio Launches New Mobile App",
     body: "<p>We're excited to announce the launch of our brand new mobile application, available on iOS and Android. Stream your favorite shows anywhere, anytime.</p>",
     publishedAt: "2025-01-15T10:00:00Z",
   },

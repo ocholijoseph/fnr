@@ -5,10 +5,6 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PlaybackHistory } from "./PlaybackHistory";
 import { ScheduleView } from "./ScheduleView";
-import SubmissionModal from "./SubmissionModal";
-import DonationModal from "./DonationModal";
-import SegmentedSwitch from "./SegmentedSwitch";
-import ReadTestimoniesModal from "./ReadTestimoniesModal";
 
 interface RadioPlayerProps {
     station: {
@@ -48,11 +44,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const userInteractedRef = useRef<boolean>(false);
     const [dataUsage, setDataUsage] = useState<number>(0);
     const lastDataUpdateRef = useRef<number>(Date.now());
-    const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
-    const [isTestimonyModalOpen, setIsTestimonyModalOpen] = useState(false);
-    const [isReadTestimoniesModalOpen, setIsReadTestimoniesModalOpen] = useState(false);
-    const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
-    const [testimonyToggle, setTestimonyToggle] = useState("share");
+
 
     useEffect(() => {
         if (audioRef.current) {
@@ -373,7 +365,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
         ? overrideMessage
         : currentTrack
             ? `${currentTrack.artist} — ${currentTrack.title}`
-            : "...A New Song!";
+            : "Freedom Naija Radio";
 
     // Calculate dynamic duration based on text length to maintain constant speed
     // Higher factor = slower speed. 0.15 is a good balance for long text.
@@ -402,7 +394,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const connectionDisplay = getConnectionDisplay();
 
     return (
-        <div className="w-full max-w-2xl mx-auto player-card rounded-2xl p-4 space-y-3 flex-1 flex flex-col justify-between">
+        <div className="w-full max-w-xl mx-auto player-card rounded-2xl p-4 space-y-3 flex-1 flex flex-col justify-between">
             <audio
                 ref={audioRef}
                 src={station.streamUrl}
@@ -432,13 +424,12 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
 
             {/* Logo */}
             <div className="flex justify-center">
-                <div className="relative group rounded-full p-2 bg-gradient-to-br from-gray-100/90 to-gray-200/80 shadow-2xl">
+                <div className="relative group">
                     <img
                         src="/fulllogo.png"
-                        alt="Kingdom FM Xtra Logo"
+                        alt="Freedom Naija Radio Logo"
                         className="h-28 w-28 transition-all duration-300 group-hover:scale-110 drop-shadow-2xl"
                     />
-                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl opacity-60 group-hover:opacity-90 transition-opacity duration-300" />
                 </div>
             </div>
 
@@ -535,14 +526,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-12 w-12 rounded-full border-2 hover:border-primary hover:bg-primary/10"
+                            className="h-12 w-12 rounded-full hover:bg-primary/10"
                         >
                             <History className="h-5 w-5" />
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-xl">
                         <DialogHeader>
                             <DialogTitle>Playback History</DialogTitle>
                         </DialogHeader>
@@ -554,14 +545,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-12 w-12 rounded-full border-2 hover:border-accent hover:bg-accent/10"
+                            className="h-12 w-12 rounded-full hover:bg-accent/10"
                         >
                             <Calendar className="h-5 w-5" />
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-xl">
                         <DialogHeader>
                             <DialogTitle>Schedule</DialogTitle>
                         </DialogHeader>
@@ -570,91 +561,9 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 </Dialog>
             </div>
 
-            {/* Submission Buttons */}
-            <div className="flex flex-col items-center justify-center gap-4 mt-8 w-full max-w-md mx-auto">
-                <div className="w-full space-y-4">
-                    <SegmentedSwitch
-                        options={[
-                            { label: "Share Testimony", value: "share" },
-                            { label: "Read Testimonies", value: "read" }
-                        ]}
-                        activeValue={testimonyToggle}
-                        onChange={(val) => {
-                            setTestimonyToggle(val);
-                            if (val === "share") {
-                                setIsTestimonyModalOpen(true);
-                            } else {
-                                setIsReadTestimoniesModalOpen(true);
-                            }
-                            // Reset back to share after a small delay so it's ready for next time
-                            setTimeout(() => setTestimonyToggle("share"), 500);
-                        }}
-                    />
-
-                    <Button
-                        variant="outline"
-                        onClick={() => setIsPrayerModalOpen(true)}
-                        className="w-full h-12 gap-2 border-primary/20 hover:border-primary hover:bg-primary/5 rounded-xl transition-all"
-                    >
-                        <Heart className="w-4 h-4 text-primary" />
-                        Prayer Request
-                    </Button>
-                </div>
-            </div>
-
-            <div className="flex justify-center w-full max-w-md mx-auto mt-4 px-0">
-                <Button
-                    onClick={() => setIsDonationModalOpen(true)}
-                    className="w-full h-14 gap-3 bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-lg"
-                >
-                    <Heart className="w-5 h-5 fill-white animate-pulse" />
-                    DONATE
-                </Button>
-            </div>
-
-            {/* Prayer Request Modal */}
-            <SubmissionModal
-                isOpen={isPrayerModalOpen}
-                onClose={() => setIsPrayerModalOpen(false)}
-                title="Submit Your Prayer Request"
-                description="Our team and community are standing with you in prayer."
-                fields={[
-                    { id: "name", label: "Full Name", type: "text", placeholder: "Your name", required: true },
-                    { id: "email", label: "Email Address", type: "email", placeholder: "your@email.com", required: true },
-                    { id: "message", label: "Prayer Request", type: "textarea", placeholder: "How can we pray for you?", required: true, minLength: 20 },
-                ]}
-                endpoint="/api/prayer-request"
-                successMessage="Your prayer request has been received. God bless you."
-            />
-
-            {/* Testimony Submission Modal */}
-            <SubmissionModal
-                isOpen={isTestimonyModalOpen}
-                onClose={() => setIsTestimonyModalOpen(false)}
-                title="Share Your Testimony"
-                description="Give glory to God for what He has done in your life!"
-                fields={[
-                    { id: "name", label: "Full Name", type: "text", placeholder: "Your name", required: true },
-                    { id: "email", label: "Email Address", type: "email", placeholder: "your@email.com (optional)" },
-                    { id: "message", label: "Testimony Message", type: "textarea", placeholder: "What did God do for you? (Max 1000 chars)", required: true, minLength: 30 },
-                    { id: "allow_public", label: "Allow us to share this publicly", type: "checkbox" },
-                ]}
-                endpoint="/api/testimonies"
-                successMessage="Thank you for sharing your testimony! God bless you."
-            />
-
-            {/* Read Testimonies Modal */}
-            <ReadTestimoniesModal
-                isOpen={isReadTestimoniesModalOpen}
-                onClose={() => setIsReadTestimoniesModalOpen(false)}
-            />
 
 
-            {/* Donation Modal */}
-            <DonationModal
-                isOpen={isDonationModalOpen}
-                onClose={() => setIsDonationModalOpen(false)}
-            />
+
         </div>
     );
 };

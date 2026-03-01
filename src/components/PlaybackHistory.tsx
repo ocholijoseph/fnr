@@ -36,30 +36,26 @@ export const PlaybackHistory = ({ history, currentTrackId }: PlaybackHistoryProp
                         <div
                             key={item.id}
                             ref={item.id === currentTrackId ? currentPlayerRef : null}
-                            className={`flex items-start gap-3 p-4 rounded-lg transition-colors ${
-                                item.id === currentTrackId
-                                    ? 'bg-primary/20 border-2 border-primary'
-                                    : 'bg-secondary hover:bg-secondary/80'
-                            }`}
+                            className={`flex items-start gap-3 p-4 rounded-lg transition-colors ${item.id === currentTrackId
+                                ? 'bg-primary/20 border-2 border-primary'
+                                : 'bg-secondary hover:bg-secondary/80'
+                                }`}
                         >
-                            <Clock className={`h-5 w-5 mt-1 flex-shrink-0 ${
-                                item.id === currentTrackId ? 'text-primary' : 'text-muted-foreground'
-                            }`} />
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <p className={`font-semibold truncate ${
-                                        item.id === currentTrackId ? 'text-primary' : ''
-                                    }`}>{item.title}</p>
+                            <Clock className={`h-5 w-5 mt-1 flex-shrink-0 ${item.id === currentTrackId ? 'text-primary' : 'text-muted-foreground'
+                                }`} />
+                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                                <div className="flex items-center justify-between gap-2 overflow-hidden">
+                                    <p className={`font-semibold truncate flex-1 leading-tight ${item.id === currentTrackId ? 'text-primary' : ''
+                                        }`}>{item.title}</p>
                                     {item.id === currentTrackId && (
-                                        <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full animate-pulse">
+                                        <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded flex-shrink-0 animate-pulse">
                                             NOW
                                         </span>
                                     )}
                                 </div>
-                                <p className={`text-sm truncate ${
-                                    item.id === currentTrackId ? 'text-primary/80' : 'text-muted-foreground'
-                                }`}>{item.artist}</p>
-                                <p className="text-xs text-muted-foreground mt-1">
+                                <p className={`text-sm truncate leading-tight ${item.id === currentTrackId ? 'text-primary/80' : 'text-muted-foreground'
+                                    }`}>{item.artist}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">
                                     {new Date(item.playedAt).toLocaleString()}
                                 </p>
                             </div>

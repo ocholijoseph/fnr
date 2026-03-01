@@ -13,7 +13,7 @@ export const Footer = () => {
                         variant="ghost"
                         size="icon"
                         className="h-10 w-10 rounded-full hover:bg-pink-500/20 hover:text-pink-500 transition-colors"
-                        onClick={() => window.open("https://instagram.com/kingdomfmxtra", "_blank")}
+                        onClick={() => window.open("https://instagram.com/freedomnaijaradio", "_blank")}
                     >
                         <Instagram className="h-5 w-5" />
                     </Button>
@@ -21,7 +21,7 @@ export const Footer = () => {
                         variant="ghost"
                         size="icon"
                         className="h-10 w-10 rounded-full hover:bg-blue-600/20 hover:text-blue-600 transition-colors"
-                        onClick={() => window.open("https://facebook.com/kingdomfmxtra", "_blank")}
+                        onClick={() => window.open("https://facebook.com/freedomnaijaradio", "_blank")}
                     >
                         <Facebook className="h-5 w-5" />
                     </Button>
@@ -29,7 +29,7 @@ export const Footer = () => {
                         variant="ghost"
                         size="icon"
                         className="h-10 w-10 rounded-full hover:bg-gray-500/20 hover:text-gray-400 transition-colors"
-                        onClick={() => window.open("https://twitter.com/kingdomfmxtra", "_blank")}
+                        onClick={() => window.open("https://twitter.com/freedomnaijaradio", "_blank")}
                     >
                         <X className="h-5 w-5" />
                     </Button>
@@ -43,7 +43,7 @@ export const Footer = () => {
                     </Button>
                 </div>
                 <div className="text-center mt-4">
-                    <p className="text-xs text-muted-foreground">© 2026 Kingdom FM Xtra. All rights reserved.</p>
+                    <p className="text-xs text-muted-foreground">© 2026 Freedom Naija Radio. All rights reserved.</p>
                 </div>
             </div>
         </footer>

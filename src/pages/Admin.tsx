@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Save, RefreshCw, MessageCircle, Heart, Settings, Lock, LogIn, Newspaper, Plus, Trash2, Pencil, Pin } from "lucide-react";
+import { ArrowLeft, Save, RefreshCw, Settings, Lock, LogIn, Newspaper, Plus, Trash2, Pencil, Pin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -21,17 +21,12 @@ const Admin = () => {
     const [scrollType, setScrollType] = useState<"information" | "news">("information");
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [prayerRequests, setPrayerRequests] = useState<any[]>([]);
-    const [testimonies, setTestimonies] = useState<any[]>([]);
     const [news, setNews] = useState<any[]>([]);
     const [isAuthenticated, setIsAuthenticated] = useState(!!sessionStorage.getItem("admin_password"));
     const [password, setPassword] = useState("");
     const [isNewsDialogOpen, setIsNewsDialogOpen] = useState(false);
     const [editingNews, setEditingNews] = useState<any>(null);
     const [newsForm, setNewsForm] = useState({ title: "", content: "", status: "Published", pinned: false });
-    const [isTestimonyDialogOpen, setIsTestimonyDialogOpen] = useState(false);
-    const [editingTestimony, setEditingTestimony] = useState<any>(null);
-    const [testimonyForm, setTestimonyForm] = useState({ name: "", email: "", message: "", allow_public: false });
     const navigate = useNavigate();
 
     const getAuthHeader = () => ({
@@ -75,17 +70,13 @@ const Admin = () => {
     const fetchSubmissions = async () => {
         if (!isAuthenticated) return;
         try {
-            const [prRes, testRes, newsRes] = await Promise.all([
-                fetch('/api/prayer-request', { headers: getAuthHeader() }),
-                fetch('/api/testimonies', { headers: getAuthHeader() }),
+            const [newsRes] = await Promise.all([
                 fetch('/api/news', { headers: getAuthHeader() })
             ]);
-            if (prRes.status === 401 || testRes.status === 401 || newsRes.status === 401) {
+            if (newsRes.status === 401) {
                 setIsAuthenticated(false);
                 return;
             }
-            if (prRes.ok) setPrayerRequests(await prRes.json());
-            if (testRes.ok) setTestimonies(await testRes.json());
             if (newsRes.ok) setNews(await newsRes.json());
         } catch (error) {
             console.error("Error fetching submissions:", error);
@@ -141,57 +132,7 @@ const Admin = () => {
         setIsNewsDialogOpen(true);
     };
 
-    const handleSaveTestimony = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/testimonies', {
-                method: "PUT",
-                headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-                body: JSON.stringify({ ...testimonyForm, id: editingTestimony.id })
-            });
-            if (response.ok) {
-                toast.success("Testimony updated successfully");
-                setIsTestimonyDialogOpen(false);
-                setEditingTestimony(null);
-                fetchSubmissions();
-            } else {
-                const errData = await response.json().catch(() => ({}));
-                toast.error(errData.error || "Failed to update testimony");
-            }
-        } catch (error) {
-            toast.error("Error saving testimony");
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
-    const handleDeleteTestimony = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this testimony?")) return;
-        try {
-            const response = await fetch(`/api/testimonies?id=${id}`, {
-                method: "DELETE",
-                headers: getAuthHeader()
-            });
-            if (response.ok) {
-                toast.success("Testimony deleted");
-                fetchSubmissions();
-            }
-        } catch (error) {
-            toast.error("Error deleting testimony");
-        }
-    };
-
-    const openEditTestimony = (item: any) => {
-        setEditingTestimony(item);
-        setTestimonyForm({
-            name: item.name,
-            email: item.email || "",
-            message: item.message,
-            allow_public: item.allow_public || item.allowPublicShare || false
-        });
-        setIsTestimonyDialogOpen(true);
-    };
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -260,7 +201,7 @@ const Admin = () => {
     };
 
     return (
-        <div className="h-full w-full max-w-[412px] mx-auto flex flex-col">
+        <div className="h-full w-full max-w-[362px] mx-auto flex flex-col">
             <div className="h-full w-full overflow-y-auto overflow-x-hidden flex-grow">
                 <div className="h-full w-full py-4 px-4 space-y-6 flex flex-col">
                     <header className="flex items-center justify-between">
@@ -313,25 +254,9 @@ const Admin = () => {
                         </div>
                     ) : (
                         <Tabs defaultValue="scroll" className="w-full">
-                            <TabsList className="grid w-full grid-cols-4 mb-8">
+                            <TabsList className="grid w-full grid-cols-2 mb-8">
                                 <TabsTrigger value="scroll" className="gap-2 text-xs sm:text-sm">
                                     <Settings className="w-4 h-4" /> Scroll
-                                </TabsTrigger>
-                                <TabsTrigger value="prayers" className="gap-2 text-xs sm:text-sm">
-                                    <Heart className="w-4 h-4" /> Prayers
-                                    {prayerRequests.length > 0 && (
-                                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-[1.2rem] h-5 justify-center">
-                                            {prayerRequests.length}
-                                        </Badge>
-                                    )}
-                                </TabsTrigger>
-                                <TabsTrigger value="testimonies" className="gap-2 text-xs sm:text-sm">
-                                    <MessageCircle className="w-4 h-4" /> Testimonies
-                                    {testimonies.length > 0 && (
-                                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-[1.2rem] h-5 justify-center">
-                                            {testimonies.length}
-                                        </Badge>
-                                    )}
                                 </TabsTrigger>
                                 <TabsTrigger value="news" className="gap-2 text-xs sm:text-sm">
                                     <Newspaper className="w-4 h-4" /> News
@@ -382,7 +307,7 @@ const Admin = () => {
                                             </Label>
                                             <Textarea
                                                 id="message"
-                                                placeholder="e.g. Welcome to Kingdom FM! Sunday Service starts 9AM."
+                                                placeholder="e.g. Welcome to Freedom Naija Radio! Stay tuned for more."
                                                 value={overrideMessage}
                                                 onChange={(e) => setOverrideMessage(e.target.value)}
                                                 className="min-h-[120px] resize-none"
@@ -428,74 +353,7 @@ const Admin = () => {
                                 </section>
                             </TabsContent>
 
-                            <TabsContent value="prayers" className="space-y-4">
-                                {prayerRequests.length === 0 ? (
-                                    <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-dashed border-border">
-                                        No prayer requests received yet.
-                                    </div>
-                                ) : (
-                                    prayerRequests.map((pr) => (
-                                        <Card key={pr.id}>
-                                            <CardHeader className="pb-2">
-                                                <div className="flex justify-between items-start text-xs text-muted-foreground mb-1">
-                                                    <span>{new Date(pr.createdAt).toLocaleString()}</span>
-                                                    <span className="font-mono text-[10px]">{pr.email}</span>
-                                                </div>
-                                                <CardTitle className="text-lg">{pr.name}</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <p className="text-sm whitespace-pre-wrap">{pr.message}</p>
-                                            </CardContent>
-                                        </Card>
-                                    )).reverse()
-                                )}
-                            </TabsContent>
 
-                            <TabsContent value="testimonies" className="space-y-4">
-                                {testimonies.length === 0 ? (
-                                    <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-dashed border-border">
-                                        No testimonies shared yet.
-                                    </div>
-                                ) : (
-                                    testimonies.map((test) => (
-                                        <Card key={test.id}>
-                                            <CardHeader className="pb-2">
-                                                <div className="flex justify-between items-start text-xs text-muted-foreground mb-1">
-                                                    <span>{new Date(test.createdAt).toLocaleString()}</span>
-                                                    <div className="flex gap-2">
-                                                        {(test.allow_public || test.allowPublicShare) && <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/50">SHARE PUBLIC</Badge>}
-                                                        <span className="font-mono text-[10px]">{test.email || "No Email"}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <CardTitle className="text-lg">{test.name}</CardTitle>
-                                                    <div className="flex items-center gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                                            onClick={() => openEditTestimony(test)}
-                                                        >
-                                                            <Pencil className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                            onClick={() => handleDeleteTestimony(test.id)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <p className="text-sm whitespace-pre-wrap">{test.message}</p>
-                                            </CardContent>
-                                        </Card>
-                                    )).reverse()
-                                )}
-                            </TabsContent>
 
                             <TabsContent value="news" className="space-y-4 text-left">
                                 <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border shadow-sm">
@@ -594,57 +452,7 @@ const Admin = () => {
                     )}
                 </div>
             </div>
-            {/* Edit Testimony Dialog */}
-            <Dialog open={isTestimonyDialogOpen} onOpenChange={setIsTestimonyDialogOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Edit Testimony</DialogTitle>
-                        <DialogDescription>Update the details of this testimony.</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveTestimony} className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="test-name">Name</Label>
-                            <Input
-                                id="test-name"
-                                value={testimonyForm.name}
-                                onChange={(e) => setTestimonyForm({ ...testimonyForm, name: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="test-email">Email</Label>
-                            <Input
-                                id="test-email"
-                                type="email"
-                                value={testimonyForm.email}
-                                onChange={(e) => setTestimonyForm({ ...testimonyForm, email: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="test-message">Message</Label>
-                            <Textarea
-                                id="test-message"
-                                value={testimonyForm.message}
-                                onChange={(e) => setTestimonyForm({ ...testimonyForm, message: e.target.value })}
-                                required
-                                className="min-h-[150px]"
-                            />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="test-public"
-                                checked={testimonyForm.allow_public}
-                                onCheckedChange={(checked) => setTestimonyForm({ ...testimonyForm, allow_public: !!checked })}
-                            />
-                            <Label htmlFor="test-public" className="text-sm font-normal">Allow public sharing</Label>
-                        </div>
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setIsTestimonyDialogOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isLoading}>{isLoading ? "Saving..." : "Save Changes"}</Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+
 
         </div>
     );
