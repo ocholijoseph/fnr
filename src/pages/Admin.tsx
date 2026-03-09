@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Save, RefreshCw, Settings, Lock, LogIn, Newspaper, Plus, Trash2, Pencil, Pin } from "lucide-react";
+import { ArrowLeft, Save, RefreshCw, Settings, Lock, LogIn, Newspaper, Plus, Trash2, Pencil, Pin, Globe, Clock, Zap, Radio, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -14,6 +14,19 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import SegmentedSwitch from "@/components/SegmentedSwitch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getHeadlines, triggerFetch, getAggregatorStatus, type HeadlinesResponse, type AggregatorStatus, type HeadlineItem } from "@/lib/newsapi-service";
+
+const PROVIDER_LABELS: Record<string, { label: string; color: string }> = {
+    newsapi: { label: 'NewsAPI', color: 'text-orange-500' },
+    newsdata: { label: 'NewsData', color: 'text-cyan-500' },
+    gnews: { label: 'GNews', color: 'text-emerald-500' },
+};
+
+const REGION_BADGES: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
+    nigeria: { label: '🇳🇬 Nigeria', variant: 'default' },
+    africa: { label: '🌍 Africa', variant: 'secondary' },
+    world: { label: '🌐 World', variant: 'outline' },
+};
 
 const Admin = () => {
     const [overrideEnabled, setOverrideEnabled] = useState(false);
@@ -27,6 +40,13 @@ const Admin = () => {
     const [isNewsDialogOpen, setIsNewsDialogOpen] = useState(false);
     const [editingNews, setEditingNews] = useState<any>(null);
     const [newsForm, setNewsForm] = useState({ title: "", content: "", status: "Published", pinned: false });
+
+    // News Aggregator state
+    const [headlinesData, setHeadlinesData] = useState<HeadlinesResponse | null>(null);
+    const [aggStatus, setAggStatus] = useState<AggregatorStatus | null>(null);
+    const [isFetchingHeadlines, setIsFetchingHeadlines] = useState(false);
+    const [selectedProvider, setSelectedProvider] = useState<string>('');
+
     const navigate = useNavigate();
 
     const getAuthHeader = () => ({
@@ -37,9 +57,7 @@ const Admin = () => {
         if (!isAuthenticated) return;
         setIsLoading(true);
         try {
-            const response = await fetch('/api/scroll', {
-                headers: getAuthHeader()
-            });
+            const response = await fetch('/api/scroll', { headers: getAuthHeader() });
             if (response.ok) {
                 const data = await response.json();
                 setOverrideEnabled(data.overrideEnabled);
@@ -73,10 +91,7 @@ const Admin = () => {
             const [newsRes] = await Promise.all([
                 fetch('/api/news', { headers: getAuthHeader() })
             ]);
-            if (newsRes.status === 401) {
-                setIsAuthenticated(false);
-                return;
-            }
+            if (newsRes.status === 401) { setIsAuthenticated(false); return; }
             if (newsRes.ok) setNews(await newsRes.json());
         } catch (error) {
             console.error("Error fetching submissions:", error);
@@ -113,14 +128,8 @@ const Admin = () => {
     const handleDeleteNews = async (id: string) => {
         if (!confirm("Are you sure you want to delete this news item?")) return;
         try {
-            const response = await fetch(`/api/news?id=${id}`, {
-                method: "DELETE",
-                headers: getAuthHeader()
-            });
-            if (response.ok) {
-                toast.success("News deleted");
-                fetchSubmissions();
-            }
+            const response = await fetch(`/api/news?id=${id}`, { method: "DELETE", headers: getAuthHeader() });
+            if (response.ok) { toast.success("News deleted"); fetchSubmissions(); }
         } catch (error) {
             toast.error("Error deleting news");
         }
@@ -132,13 +141,47 @@ const Admin = () => {
         setIsNewsDialogOpen(true);
     };
 
+    // ── News Aggregator functions ──
+    const loadHeadlines = useCallback(async () => {
+        try {
+            const data = await getHeadlines();
+            setHeadlinesData(data);
+        } catch (e) {
+            console.error('Failed to load headlines:', e);
+        }
+    }, []);
 
+    const loadAggStatus = useCallback(async () => {
+        try {
+            const status = await getAggregatorStatus();
+            setAggStatus(status);
+        } catch (e) {
+            console.error('Failed to load aggregator status:', e);
+        }
+    }, []);
+
+    const handleManualFetch = async () => {
+        setIsFetchingHeadlines(true);
+        try {
+            const result = await triggerFetch(selectedProvider || undefined);
+            if (result.success) {
+                toast.success(`Fetched ${result.fetched} headlines from ${PROVIDER_LABELS[result.provider]?.label || result.provider}`);
+                loadHeadlines();
+                loadAggStatus();
+            } else {
+                toast.error(`Fetch failed: ${result.error}`);
+            }
+        } catch (error: any) {
+            toast.error(`Fetch error: ${error.message}`);
+        } finally {
+            setIsFetchingHeadlines(false);
+        }
+    };
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (password) {
-            const trimmedPassword = password.trim();
-            sessionStorage.setItem("admin_password", trimmedPassword);
+            sessionStorage.setItem("admin_password", password.trim());
             setIsAuthenticated(true);
         }
     };
@@ -153,39 +196,28 @@ const Admin = () => {
         if (isAuthenticated) {
             fetchConfig();
             fetchSubmissions();
+            loadHeadlines();
+            loadAggStatus();
+            // Refresh headlines every 2 minutes
+            const iv = setInterval(() => { loadHeadlines(); loadAggStatus(); }, 2 * 60 * 1000);
+            return () => clearInterval(iv);
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, loadHeadlines, loadAggStatus]);
 
     const handleSave = async () => {
-        if (overrideMessage.length > 2000) {
-            toast.error("Message too long (max 2000 characters)");
-            return;
-        }
-
+        if (overrideMessage.length > 2000) { toast.error("Message too long (max 2000 characters)"); return; }
         setIsSaving(true);
         try {
             const response = await fetch('/api/scroll', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...getAuthHeader()
-                },
-                body: JSON.stringify({
-                    overrideEnabled,
-                    overrideMessage: overrideMessage.trim(),
-                    scrollType
-                })
+                headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+                body: JSON.stringify({ overrideEnabled, overrideMessage: overrideMessage.trim(), scrollType })
             });
-
-            if (response.ok) {
-                toast.success("Settings updated successfully!");
-            } else if (response.status === 401) {
+            if (response.ok) { toast.success("Settings updated successfully!"); }
+            else if (response.status === 401) {
                 const errorData = await response.json().catch(() => ({}));
                 let diagMsg = "";
-                if (errorData.diagnostic) {
-                    const { providedLength, expectedLength, hasEnv } = errorData.diagnostic;
-                    diagMsg = ` (Sent: ${providedLength}, Expected: ${expectedLength}, EnvSet: ${hasEnv})`;
-                }
+                if (errorData.diagnostic) { const { providedLength, expectedLength, hasEnv } = errorData.diagnostic; diagMsg = ` (Sent: ${providedLength}, Expected: ${expectedLength}, EnvSet: ${hasEnv})`; }
                 toast.error(`Unauthorized${diagMsg}. Please check your password.`);
                 setIsAuthenticated(false);
             } else {
@@ -195,13 +227,11 @@ const Admin = () => {
         } catch (error) {
             console.error("Error saving config:", error);
             toast.error("Connecting failed. Is the API server running?");
-        } finally {
-            setIsSaving(false);
-        }
+        } finally { setIsSaving(false); }
     };
 
     return (
-        <div className="h-full w-full max-w-[362px] mx-auto flex flex-col">
+        <div className="h-full w-full max-w-[420px] mx-auto flex flex-col">
             <div className="h-full w-full overflow-y-auto overflow-x-hidden flex-grow">
                 <div className="h-full w-full py-4 px-4 space-y-6 flex flex-col">
                     <header className="flex items-center justify-between">
@@ -211,11 +241,9 @@ const Admin = () => {
                         <h1 className="text-2xl font-bold">Admin</h1>
                         <div className="flex gap-2">
                             {isAuthenticated && (
-                                <Button variant="outline" size="sm" onClick={handleLogout} className="text-xs">
-                                    Logout
-                                </Button>
+                                <Button variant="outline" size="sm" onClick={handleLogout} className="text-xs">Logout</Button>
                             )}
-                            <Button variant="outline" size="icon" onClick={() => { fetchConfig(); fetchSubmissions(); }} disabled={isLoading || !isAuthenticated}>
+                            <Button variant="outline" size="icon" onClick={() => { fetchConfig(); fetchSubmissions(); loadHeadlines(); loadAggStatus(); }} disabled={isLoading || !isAuthenticated}>
                                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                             </Button>
                         </div>
@@ -234,108 +262,68 @@ const Admin = () => {
                                     <CardContent className="space-y-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="password">Password</Label>
-                                            <Input
-                                                id="password"
-                                                type="password"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                placeholder="Enter admin password"
-                                                autoFocus
-                                            />
+                                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter admin password" autoFocus />
                                         </div>
                                     </CardContent>
                                     <CardFooter>
-                                        <Button type="submit" className="w-full gap-2">
-                                            <LogIn className="w-4 h-4" /> Login
-                                        </Button>
+                                        <Button type="submit" className="w-full gap-2"><LogIn className="w-4 h-4" /> Login</Button>
                                     </CardFooter>
                                 </form>
                             </Card>
                         </div>
                     ) : (
                         <Tabs defaultValue="scroll" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2 mb-8">
-                                <TabsTrigger value="scroll" className="gap-2 text-xs sm:text-sm">
-                                    <Settings className="w-4 h-4" /> Scroll
+                            <TabsList className="grid w-full grid-cols-3 mb-8">
+                                <TabsTrigger value="scroll" className="gap-1 text-xs sm:text-sm">
+                                    <Settings className="w-3 h-3" /> Scroll
                                 </TabsTrigger>
-                                <TabsTrigger value="news" className="gap-2 text-xs sm:text-sm">
-                                    <Newspaper className="w-4 h-4" /> News
+                                <TabsTrigger value="headlines" className="gap-1 text-xs sm:text-sm">
+                                    <Globe className="w-3 h-3" /> Headlines
+                                    {headlinesData && headlinesData.stats.total > 0 && (
+                                        <Badge variant="secondary" className="ml-1 px-1 py-0 min-w-[1.2rem] h-4 justify-center text-[10px]">
+                                            {headlinesData.stats.total}
+                                        </Badge>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="news" className="gap-1 text-xs sm:text-sm">
+                                    <Newspaper className="w-3 h-3" /> Manual
                                     {news.length > 0 && (
-                                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-[1.2rem] h-5 justify-center">
+                                        <Badge variant="secondary" className="ml-1 px-1 py-0 min-w-[1.2rem] h-4 justify-center text-[10px]">
                                             {news.length}
                                         </Badge>
                                     )}
                                 </TabsTrigger>
                             </TabsList>
 
+                            {/* ── SCROLL TAB ── */}
                             <TabsContent value="scroll" className="space-y-6">
                                 <main className="space-y-6 bg-card p-4 rounded-xl border border-border shadow-sm">
                                     <div className="space-y-4">
                                         <div className="space-y-2 pb-4 border-b border-border">
-                                            <Label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                                                Scroll Content Type
-                                            </Label>
+                                            <Label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Scroll Content Type</Label>
                                             <SegmentedSwitch
-                                                options={[
-                                                    { label: "Information", value: "information" },
-                                                    { label: "News", value: "news" }
-                                                ]}
+                                                options={[{ label: "Information", value: "information" }, { label: "News", value: "news" }]}
                                                 activeValue={scrollType}
                                                 onChange={(val) => setScrollType(val as any)}
                                             />
                                         </div>
-
                                         <div className="flex items-center justify-between pb-4 border-b border-border">
                                             <div className="space-y-0.5">
-                                                <Label htmlFor="override-toggle" className="text-base font-semibold">
-                                                    Enable Information Scroll Override
-                                                </Label>
-                                                <p className="text-sm text-muted-foreground">
-                                                    When enabled, this message replaces the live Artist/Song metadata.
-                                                </p>
+                                                <Label htmlFor="override-toggle" className="text-base font-semibold">Enable Information Scroll Override</Label>
+                                                <p className="text-sm text-muted-foreground">When enabled, this message replaces the live Artist/Song metadata.</p>
                                             </div>
-                                            <Switch
-                                                id="override-toggle"
-                                                checked={overrideEnabled}
-                                                onCheckedChange={setOverrideEnabled}
-                                            />
+                                            <Switch id="override-toggle" checked={overrideEnabled} onCheckedChange={setOverrideEnabled} />
                                         </div>
-
                                         <div className="space-y-2">
-                                            <Label htmlFor="message" className="text-sm font-medium">
-                                                Override Message
-                                            </Label>
-                                            <Textarea
-                                                id="message"
-                                                placeholder="e.g. Welcome to Freedom Naija Radio! Stay tuned for more."
-                                                value={overrideMessage}
-                                                onChange={(e) => setOverrideMessage(e.target.value)}
-                                                className="min-h-[120px] resize-none"
-                                                maxLength={2000}
-                                            />
-                                            <div className="text-right text-xs text-muted-foreground">
-                                                {overrideMessage.length}/2000 characters
-                                            </div>
+                                            <Label htmlFor="message" className="text-sm font-medium">Override Message</Label>
+                                            <Textarea id="message" placeholder="e.g. Welcome to Freedom Naija Radio!" value={overrideMessage} onChange={(e) => setOverrideMessage(e.target.value)} className="min-h-[120px] resize-none" maxLength={2000} />
+                                            <div className="text-right text-xs text-muted-foreground">{overrideMessage.length}/2000 characters</div>
                                         </div>
                                     </div>
-
-                                    <Button
-                                        className="w-full gap-2 h-12 text-base font-bold"
-                                        onClick={handleSave}
-                                        disabled={isSaving}
-                                    >
-                                        {isSaving ? (
-                                            <>
-                                                <RefreshCw className="w-4 h-4 animate-spin" /> Saving...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-4 h-4" /> Save & Update Scroll
-                                            </>
-                                        )}
+                                    <Button className="w-full gap-2 h-12 text-base font-bold" onClick={handleSave} disabled={isSaving}>
+                                        {isSaving ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving...</> : <><Save className="w-4 h-4" /> Save & Update Scroll</>}
                                     </Button>
                                 </main>
-
                                 <section className="p-4 bg-muted/30 rounded-lg border border-border/50">
                                     <h2 className="text-sm font-semibold mb-2">Live App Status</h2>
                                     <div className="text-xs space-y-1">
@@ -353,18 +341,157 @@ const Admin = () => {
                                 </section>
                             </TabsContent>
 
+                            {/* ── HEADLINES TAB (News Aggregator) ── */}
+                            <TabsContent value="headlines" className="space-y-4 text-left">
+                                {/* Aggregator Status Card */}
+                                <Card className="border-blue-500/30 bg-gradient-to-br from-blue-500/5 to-purple-500/5">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <Radio className="w-5 h-5 text-blue-500 animate-pulse" />
+                                            Eternal News Scroll
+                                        </CardTitle>
+                                        <CardDescription className="text-xs">
+                                            Auto-aggregates headlines from <strong>3 sources</strong>, rotating every <strong>10 minutes</strong>.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        {/* Provider Rotation Status */}
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {aggStatus?.providerRotation?.map((p) => (
+                                                <div key={p.name} className={`p-2 rounded-lg border text-center text-[10px] transition-all ${p.isCurrent ? 'border-blue-500/50 bg-blue-500/10 ring-1 ring-blue-500/30' : p.isNext ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-border/50 bg-muted/20'}`}>
+                                                    <div className={`font-bold ${PROVIDER_LABELS[p.name]?.color || ''}`}>
+                                                        {PROVIDER_LABELS[p.name]?.label || p.name}
+                                                    </div>
+                                                    <div className="mt-0.5">
+                                                        {p.isCurrent ? <Badge variant="default" className="text-[8px] h-4 px-1">CURRENT</Badge>
+                                                            : p.isNext ? <Badge variant="outline" className="text-[8px] h-4 px-1 border-yellow-500/50 text-yellow-600">NEXT</Badge>
+                                                                : <span className="text-muted-foreground">Idle</span>}
+                                                    </div>
+                                                    {p.lastError ? (
+                                                        <div className="mt-1 flex items-center justify-center gap-0.5 text-destructive">
+                                                            <XCircle className="w-2.5 h-2.5" />
+                                                            <span className="truncate max-w-[60px]">Error</span>
+                                                        </div>
+                                                    ) : aggStatus?.keysConfigured?.[p.name as keyof typeof aggStatus.keysConfigured] ? (
+                                                        <div className="mt-1 flex items-center justify-center gap-0.5 text-emerald-500">
+                                                            <CheckCircle2 className="w-2.5 h-2.5" />
+                                                            <span>Ready</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-1 flex items-center justify-center gap-0.5 text-yellow-500">
+                                                            <AlertTriangle className="w-2.5 h-2.5" />
+                                                            <span>No Key</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )) || (
+                                                    <div className="col-span-3 text-center text-xs text-muted-foreground py-2">Loading status...</div>
+                                                )}
+                                        </div>
 
+                                        {/* Stats */}
+                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-border/50">
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold">{headlinesData?.stats?.total || 0}</div>
+                                                <div className="text-[10px] text-muted-foreground">Total</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-emerald-500">{headlinesData?.stats?.nigeria || 0}</div>
+                                                <div className="text-[10px] text-muted-foreground">🇳🇬 Nigeria</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-blue-500">{headlinesData?.stats?.africa || 0}</div>
+                                                <div className="text-[10px] text-muted-foreground">🌍 Africa</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-purple-500">{headlinesData?.stats?.world || 0}</div>
+                                                <div className="text-[10px] text-muted-foreground">🌐 World</div>
+                                            </div>
+                                        </div>
 
+                                        {/* Last updated */}
+                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
+                                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Last updated:</span>
+                                            <span className="font-mono">{headlinesData?.lastUpdated ? new Date(headlinesData.lastUpdated).toLocaleString() : 'Never'}</span>
+                                        </div>
+                                    </CardContent>
+                                    <CardFooter className="flex gap-2">
+                                        <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                                            <SelectTrigger className="w-[120px] h-8 text-xs">
+                                                <SelectValue placeholder="Auto" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="auto">Auto (Next)</SelectItem>
+                                                <SelectItem value="newsapi">NewsAPI</SelectItem>
+                                                <SelectItem value="newsdata">NewsData</SelectItem>
+                                                <SelectItem value="gnews">GNews</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <Button
+                                            size="sm"
+                                            className="flex-1 gap-2"
+                                            onClick={handleManualFetch}
+                                            disabled={isFetchingHeadlines}
+                                        >
+                                            {isFetchingHeadlines ? (
+                                                <><RefreshCw className="w-3 h-3 animate-spin" /> Fetching...</>
+                                            ) : (
+                                                <><Zap className="w-3 h-3" /> Fetch Now</>
+                                            )}
+                                        </Button>
+                                    </CardFooter>
+                                </Card>
+
+                                {/* Headlines List */}
+                                <div className="space-y-2 pb-8">
+                                    <h3 className="text-sm font-semibold flex items-center gap-2 px-1">
+                                        <Newspaper className="w-4 h-4 text-primary" />
+                                        Live Headlines ({headlinesData?.fullHeadlines?.length || 0})
+                                    </h3>
+                                    {!headlinesData?.fullHeadlines?.length ? (
+                                        <div className="text-center py-8 text-muted-foreground bg-card rounded-xl border border-dashed border-border text-xs">
+                                            No headlines yet. Click "Fetch Now" or wait for auto-rotation.
+                                        </div>
+                                    ) : (
+                                        headlinesData.fullHeadlines.map((h: HeadlineItem, i: number) => (
+                                            <Card key={h.id || i} className={`transition-all hover:shadow-sm ${h.region === 'nigeria' ? 'border-l-2 border-l-emerald-500' : h.region === 'africa' ? 'border-l-2 border-l-blue-500' : 'border-l-2 border-l-purple-500'}`}>
+                                                <CardContent className="p-3">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium leading-tight line-clamp-2">{h.title}</p>
+                                                            {h.summary && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{h.summary}</p>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                        <Badge variant={REGION_BADGES[h.region]?.variant || 'outline'} className="text-[9px] h-4 px-1.5">
+                                                            {REGION_BADGES[h.region]?.label || h.region}
+                                                        </Badge>
+                                                        <span className={`text-[9px] font-medium ${PROVIDER_LABELS[h.provider]?.color || ''}`}>
+                                                            {PROVIDER_LABELS[h.provider]?.label || h.provider}
+                                                        </span>
+                                                        <span className="text-[9px] text-muted-foreground">• {h.source}</span>
+                                                        <span className="text-[9px] text-muted-foreground ml-auto">
+                                                            {new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ))
+                                    )}
+                                </div>
+                            </TabsContent>
+
+                            {/* ── MANUAL NEWS TAB ── */}
                             <TabsContent value="news" className="space-y-4 text-left">
                                 <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border shadow-sm">
                                     <h2 className="text-lg font-bold flex items-center gap-2">
                                         <Newspaper className="w-5 h-5 text-primary" />
-                                        News Items
+                                        Manual News
                                     </h2>
                                     <Dialog open={isNewsDialogOpen} onOpenChange={setIsNewsDialogOpen}>
                                         <DialogTrigger asChild>
                                             <Button size="sm" className="gap-2" onClick={() => { setEditingNews(null); setNewsForm({ title: "", content: "", status: "Published", pinned: false }); }}>
-                                                <Plus className="w-4 h-4" /> Add News
+                                                <Plus className="w-4 h-4" /> Add
                                             </Button>
                                         </DialogTrigger>
                                         <DialogContent className="sm:max-w-[425px]">
@@ -379,15 +506,13 @@ const Admin = () => {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label htmlFor="news-content">Content</Label>
-                                                    <Textarea id="news-content" value={newsForm.content} onChange={e => setNewsForm({ ...newsForm, content: e.target.value })} placeholder="Details of the announcement..." className="min-h-[150px]" required />
+                                                    <Textarea id="news-content" value={newsForm.content} onChange={e => setNewsForm({ ...newsForm, content: e.target.value })} placeholder="Details..." className="min-h-[150px]" required />
                                                 </div>
                                                 <div className="flex items-center justify-between gap-4">
                                                     <div className="flex-1 space-y-2">
                                                         <Label>Status</Label>
                                                         <Select value={newsForm.status} onValueChange={val => setNewsForm({ ...newsForm, status: val })}>
-                                                            <SelectTrigger className="w-full">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
+                                                            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                                                             <SelectContent>
                                                                 <SelectItem value="Published">Published</SelectItem>
                                                                 <SelectItem value="Draft">Draft</SelectItem>
@@ -413,14 +538,14 @@ const Admin = () => {
                                 <div className="space-y-3 pb-8">
                                     {news.length === 0 ? (
                                         <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-dashed border-border">
-                                            No news items yet. Click "Add News" to start.
+                                            No manual news items yet. Click "Add" to start.
                                         </div>
                                     ) : (
                                         news.map((item: any) => (
                                             <Card key={item.id} className={`${item.pinned ? 'border-primary/50 shadow-sm bg-primary/5' : ''}`}>
                                                 <CardHeader className="pb-2">
                                                     <div className="flex justify-between items-start">
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             {item.pinned && <Pin className="w-3 h-3 text-primary fill-primary" />}
                                                             <Badge variant={item.status === 'Published' ? 'default' : 'secondary'} className="text-[10px]">
                                                                 {item.status.toUpperCase()}
@@ -452,8 +577,6 @@ const Admin = () => {
                     )}
                 </div>
             </div>
-
-
         </div>
     );
 };

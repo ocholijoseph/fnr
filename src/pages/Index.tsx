@@ -204,25 +204,45 @@ const Index = () => {
                 const data = await response.json();
                 setScrollConfig(data);
 
-                // If News is selected, fetch news items to build the message
+                // If News is selected, fetch both auto-aggregated headlines and manual news
                 if (data.scrollType === "news") {
                     try {
-                        const newsRes = await fetch('/api/news');
-                        if (newsRes.ok) {
-                            const newsData = await newsRes.json();
-                            const publishedNews = newsData
-                                .filter((item: any) => item.status === "Published")
-                                .map((item: any) => item.title);
+                        const allTitles: string[] = [];
 
-                            if (publishedNews.length > 0) {
-                                // Add extra space at the end of the news message for better marquee separation
-                                setNewsMessage("NEWS: " + publishedNews.join(" | ") + "          ");
-                            } else {
-                                setNewsMessage("Stay tuned for latest updates!");
+                        // 1. Fetch auto-aggregated headlines (from NewsAPI, NewsData, GNews)
+                        try {
+                            const headlinesRes = await fetch('/api/news-headlines');
+                            if (headlinesRes.ok) {
+                                const headlinesData = await headlinesRes.json();
+                                if (headlinesData.headlines && headlinesData.headlines.length > 0) {
+                                    allTitles.push(...headlinesData.headlines);
+                                }
                             }
+                        } catch (err) {
+                            console.error("Error fetching aggregated headlines:", err);
+                        }
+
+                        // 2. Fetch manual news items
+                        try {
+                            const newsRes = await fetch('/api/news');
+                            if (newsRes.ok) {
+                                const newsData = await newsRes.json();
+                                const publishedNews = newsData
+                                    .filter((item: any) => item.status === "Published")
+                                    .map((item: any) => item.title);
+                                allTitles.push(...publishedNews);
+                            }
+                        } catch (err) {
+                            console.error("Error fetching manual news:", err);
+                        }
+
+                        if (allTitles.length > 0) {
+                            setNewsMessage("NEWS: " + allTitles.join("  ●  ") + "          ");
+                        } else {
+                            setNewsMessage("Stay tuned for latest updates!");
                         }
                     } catch (err) {
-                        console.error("Error fetching news for scroll:", err);
+                        console.error("Error building news scroll:", err);
                     }
                 } else {
                     setNewsMessage("");

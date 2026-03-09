@@ -33,3 +33,9 @@ android/app/release/
 android/.gradle/
 android/build/
 android/app/build/
+
+# News aggregator cache
+headlines_cache.json
+
+# Environment variables
+.env
