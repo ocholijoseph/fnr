@@ -2,13 +2,16 @@ import http from 'http';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3300;
 const SCROLL_FILE = path.join(__dirname, 'scroll.json');
+const NEWS_FILE_PATH = path.join(__dirname, 'news.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024'; // Default password
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
 
 const verifyAuth = (req) => {
     const authHeader = req.headers['authorization'] || req.headers['x-admin-password'];
@@ -203,6 +206,125 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    const urlPathNewsFetch = req.url.split('?')[0].replace(/\/$/, '');
+    if (urlPathNewsFetch === '/api/news/fetch' || urlPathNewsFetch === '/news/fetch') {
+        if (req.method === 'POST') {
+            if (!verifyAuth(req)) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                return;
+            }
+            try {
+                console.log(`[NEWS] Manual fetch triggered...`);
+                await fetchDailyNews();
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, message: 'News fetch completed' }));
+            } catch (error) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ error: 'Failed to fetch news manually' }));
+            }
+            return;
+        }
+    }
+
+    const urlPathNews = req.url.split('?')[0].replace(/\/$/, '');
+    if (urlPathNews === '/api/news' || urlPathNews === '/news') {
+        const NEWS_FILE = NEWS_FILE_PATH;
+
+        if (req.method === 'GET') {
+            try {
+                // Run cleanup of old unpinned news on each GET request
+                await cleanupOldNews();
+                const data = await fs.readFile(NEWS_FILE, 'utf-8');
+                res.setHeader('Content-Type', 'application/json');
+                res.end(data);
+            } catch (error) {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify([]));
+            }
+            return;
+        }
+
+        if (req.method === 'POST' || req.method === 'PUT') {
+            if (!verifyAuth(req)) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                return;
+            }
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', async () => {
+                try {
+                    const data = JSON.parse(body);
+                    let existing = [];
+                    try {
+                        const fileData = await fs.readFile(NEWS_FILE, 'utf-8');
+                        existing = JSON.parse(fileData);
+                    } catch (e) { }
+
+                    if (req.method === 'POST') {
+                        const newsItem = {
+                            ...data,
+                            id: Date.now().toString(),
+                            createdAt: new Date().toISOString()
+                        };
+                        existing.unshift(newsItem);
+                    } else { // PUT
+                        const index = existing.findIndex(item => item.id === (data.id || '').toString());
+                        if (index === -1) {
+                            res.statusCode = 404;
+                            res.end(JSON.stringify({ error: 'News item not found' }));
+                            return;
+                        }
+                        existing[index] = {
+                            ...existing[index],
+                            ...data,
+                            updatedAt: new Date().toISOString()
+                        };
+                    }
+
+                    await fs.writeFile(NEWS_FILE, JSON.stringify(existing, null, 2), 'utf-8');
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ success: true }));
+                } catch (error) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'Failed to process news item' }));
+                }
+            });
+            return;
+        }
+
+        if (req.method === 'DELETE') {
+            if (!verifyAuth(req)) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
+                return;
+            }
+            const query = new URL(req.url, 'http://localhost').searchParams;
+            const id = query.get('id');
+
+            if (!id) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'ID is required' }));
+                return;
+            }
+
+            try {
+                const fileData = await fs.readFile(NEWS_FILE, 'utf-8');
+                let existing = JSON.parse(fileData);
+                const filtered = existing.filter(item => item.id !== id.toString());
+
+                await fs.writeFile(NEWS_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true }));
+            } catch (error) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ error: 'Failed to delete news item' }));
+            }
+            return;
+        }
+    }
+
 
     res.statusCode = 404;
     res.end(JSON.stringify({ error: 'Route not found' }));
@@ -212,6 +334,40 @@ server.listen(PORT, () => {
     console.log(`API Server running at http://localhost:${PORT}`);
     console.log(`Handling /api/scroll -> ${SCROLL_FILE}`);
 });
+
+// ---- Auto-delete unpinned news older than 3 days ----
+const cleanupOldNews = async () => {
+    try {
+        const fileData = await fs.readFile(NEWS_FILE_PATH, 'utf-8');
+        const allNews = JSON.parse(fileData);
+        const now = Date.now();
+
+        const filtered = allNews.filter(item => {
+            // Always keep pinned news
+            if (item.pinned) return true;
+            // Remove unpinned news older than 3 days
+            const createdAt = new Date(item.createdAt).getTime();
+            return (now - createdAt) < THREE_DAYS_MS;
+        });
+
+        const removedCount = allNews.length - filtered.length;
+        if (removedCount > 0) {
+            await fs.writeFile(NEWS_FILE_PATH, JSON.stringify(filtered, null, 2), 'utf-8');
+            console.log(`[NEWS CLEANUP] Removed ${removedCount} unpinned news item(s) older than 3 days.`);
+        }
+    } catch (error) {
+        // File might not exist yet, that's fine
+        if (error.code !== 'ENOENT') {
+            console.error('[NEWS CLEANUP] Error cleaning up old news:', error);
+        }
+    }
+};
+
+// Run cleanup on server startup
+cleanupOldNews();
+
+// Run cleanup every 6 hours
+setInterval(cleanupOldNews, 6 * 60 * 60 * 1000);
 
 const fetchDailyNews = async () => {
     try {
@@ -223,26 +379,6 @@ const fetchDailyNews = async () => {
         } catch (e) { }
 
         const now = Date.now();
-        const newsApiKey = process.env.NEWS_API_KEY || "6a2264d7f14a47229a9c14610194ab70";
-        let url = `https://newsapi.org/v2/top-headlines?country=ng&pageSize=5&apiKey=${encodeURIComponent(newsApiKey)}`;
-
-        console.log(`[NEWSAPI] Fetching daily news...`);
-        let response = await fetch(url);
-        let json = await response.json();
-
-        // Fallback to global english news if Nigeria-specific query returns 0 results
-        if (json.status === 'ok' && (!json.articles || json.articles.length === 0)) {
-            console.log(`[NEWSAPI] No Nigerian news found, falling back to general English news...`);
-            url = `https://newsapi.org/v2/top-headlines?language=en&pageSize=5&apiKey=${encodeURIComponent(newsApiKey)}`;
-            response = await fetch(url);
-            json = await response.json();
-        }
-
-        if (json.status !== 'ok') {
-            console.error('[NEWSAPI] Failed to fetch:', json);
-            return;
-        }
-
         const NEWS_FILE = path.join(__dirname, 'news.json');
         let existing = [];
         try {
@@ -250,19 +386,75 @@ const fetchDailyNews = async () => {
             existing = JSON.parse(fileData);
         } catch (e) { }
 
+        const fetchedArticles = [];
+
+        // 1. NewsAPI.org
+        const newsApiKey = process.env.NEWSAPI_KEY || process.env.NEWS_API_KEY;
+        if (newsApiKey) {
+            try {
+                console.log(`[NEWS] Fetching from NewsAPI.org...`);
+                let url = `https://newsapi.org/v2/top-headlines?country=ng&pageSize=10&apiKey=${encodeURIComponent(newsApiKey)}`;
+                let response = await fetch(url);
+                let json = await response.json();
+
+                if (json.status === 'ok' && json.articles) {
+                    json.articles.forEach(a => fetchedArticles.push({
+                        title: `${a.title} - ${a.source?.name || 'NewsAPI'}`,
+                        content: a.url || a.description || 'Read more',
+                        source: 'NewsAPI'
+                    }));
+                }
+            } catch (e) { console.error('[NEWS] NewsAPI error:', e); }
+        }
+
+        // 2. NewsData.io
+        const newsDataKey = process.env.NEWSDATA_API_KEY;
+        if (newsDataKey) {
+            try {
+                console.log(`[NEWS] Fetching from NewsData.io...`);
+                let url = `https://newsdata.io/api/1/news?apikey=${encodeURIComponent(newsDataKey)}&country=ng&language=en`;
+                let response = await fetch(url);
+                let json = await response.json();
+
+                if (json.status === 'success' && json.results) {
+                    json.results.forEach(a => fetchedArticles.push({
+                        title: a.title,
+                        content: a.link || a.description || 'Read more',
+                        source: 'NewsData.io'
+                    }));
+                }
+            } catch (e) { console.error('[NEWS] NewsData error:', e); }
+        }
+
+        // 3. GNews.io
+        const gnewsKey = process.env.GNEWS_API_KEY;
+        if (gnewsKey) {
+            try {
+                console.log(`[NEWS] Fetching from GNews.io...`);
+                let url = `https://gnews.io/api/v4/top-headlines?category=general&lang=en&country=ng&max=10&apikey=${encodeURIComponent(gnewsKey)}`;
+                let response = await fetch(url);
+                let json = await response.json();
+
+                if (json.articles) {
+                    json.articles.forEach(a => fetchedArticles.push({
+                        title: `${a.title} - ${a.source?.name || 'GNews'}`,
+                        content: a.url || a.description || 'Read more',
+                        source: 'GNews'
+                    }));
+                }
+            } catch (e) { console.error('[NEWS] GNews error:', e); }
+        }
+
         let addedCount = 0;
         const newItems = [];
 
-        for (const article of json.articles || []) {
-            const title = `${article.title || 'Breaking News'} - ${article.source?.name || 'NewsAPI'}`;
-            const content = article.url || article.description || 'Read more';
-
+        for (const article of fetchedArticles) {
             // Check to avoid exact duplicates
-            if (!existing.some(item => item.title === title || item.content === content)) {
+            if (!existing.some(item => item.title === article.title || item.content === article.content)) {
                 newItems.push({
                     id: Date.now().toString() + Math.random().toString().slice(2, 8),
-                    title: title,
-                    content: content,
+                    title: article.title,
+                    content: article.content,
                     status: 'Published',
                     pinned: false,
                     createdAt: new Date().toISOString()
@@ -277,10 +469,13 @@ const fetchDailyNews = async () => {
         }
 
         await fs.writeFile(LAST_FETCH_FILE, JSON.stringify({ timestamp: now }), 'utf-8');
-        console.log(`[NEWSAPI] Successfully added ${addedCount} news items.`);
+        console.log(`[NEWS] Successfully added ${addedCount} news items from multiple sources.`);
+
+        // Clean up old unpinned news after each fetch
+        await cleanupOldNews();
 
     } catch (error) {
-        console.error('[NEWSAPI] Error fetching daily news:', error);
+        console.error('[NEWS] Error fetching daily news:', error);
     }
 };
 

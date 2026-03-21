@@ -21,6 +21,7 @@ const Admin = () => {
     const [scrollType, setScrollType] = useState<"information" | "news">("information");
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isFetchingNews, setIsFetchingNews] = useState(false);
     const [news, setNews] = useState<any[]>([]);
     const [isAuthenticated, setIsAuthenticated] = useState(!!sessionStorage.getItem("admin_password"));
     const [password, setPassword] = useState("");
@@ -107,6 +108,27 @@ const Admin = () => {
             toast.error("Error saving news");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleFetchLatestNews = async () => {
+        setIsFetchingNews(true);
+        try {
+            const response = await fetch('/api/news/fetch', {
+                method: 'POST',
+                headers: getAuthHeader()
+            });
+            if (response.ok) {
+                toast.success("Latest news fetched successfully");
+                fetchSubmissions();
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                toast.error(errData.error || "Failed to fetch news");
+            }
+        } catch (error) {
+            toast.error("Error connecting to news service");
+        } finally {
+            setIsFetchingNews(false);
         }
     };
 
@@ -361,53 +383,65 @@ const Admin = () => {
                                         <Newspaper className="w-5 h-5 text-primary" />
                                         News Items
                                     </h2>
-                                    <Dialog open={isNewsDialogOpen} onOpenChange={setIsNewsDialogOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button size="sm" className="gap-2" onClick={() => { setEditingNews(null); setNewsForm({ title: "", content: "", status: "Published", pinned: false }); }}>
-                                                <Plus className="w-4 h-4" /> Add News
-                                            </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="sm:max-w-[425px]">
-                                            <DialogHeader>
-                                                <DialogTitle>{editingNews ? 'Edit News' : 'Add New News Item'}</DialogTitle>
-                                                <DialogDescription>Fill in the details for your news update.</DialogDescription>
-                                            </DialogHeader>
-                                            <form onSubmit={handleSaveNews} className="space-y-4 py-4 text-left">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="news-title">Title</Label>
-                                                    <Input id="news-title" value={newsForm.title} onChange={e => setNewsForm({ ...newsForm, title: e.target.value })} placeholder="Breaking News..." required />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="news-content">Content</Label>
-                                                    <Textarea id="news-content" value={newsForm.content} onChange={e => setNewsForm({ ...newsForm, content: e.target.value })} placeholder="Details of the announcement..." className="min-h-[150px]" required />
-                                                </div>
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <div className="flex-1 space-y-2">
-                                                        <Label>Status</Label>
-                                                        <Select value={newsForm.status} onValueChange={val => setNewsForm({ ...newsForm, status: val })}>
-                                                            <SelectTrigger className="w-full">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="Published">Published</SelectItem>
-                                                                <SelectItem value="Draft">Draft</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-2"
+                                            onClick={handleFetchLatestNews}
+                                            disabled={isFetchingNews}
+                                        >
+                                            <RefreshCw className={`w-4 h-4 ${isFetchingNews ? 'animate-spin' : ''}`} />
+                                            {isFetchingNews ? 'Fetching...' : 'Fetch Latest'}
+                                        </Button>
+                                        <Dialog open={isNewsDialogOpen} onOpenChange={setIsNewsDialogOpen}>
+                                            <DialogTrigger asChild>
+                                                <Button size="sm" className="gap-2" onClick={() => { setEditingNews(null); setNewsForm({ title: "", content: "", status: "Published", pinned: false }); }}>
+                                                    <Plus className="w-4 h-4" /> Add News
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[425px]">
+                                                <DialogHeader>
+                                                    <DialogTitle>{editingNews ? 'Edit News' : 'Add New News Item'}</DialogTitle>
+                                                    <DialogDescription>Fill in the details for your news update.</DialogDescription>
+                                                </DialogHeader>
+                                                <form onSubmit={handleSaveNews} className="space-y-4 py-4 text-left">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="news-title">Title</Label>
+                                                        <Input id="news-title" value={newsForm.title} onChange={e => setNewsForm({ ...newsForm, title: e.target.value })} placeholder="Breaking News..." required />
                                                     </div>
-                                                    <div className="flex items-center space-x-2 pt-6">
-                                                        <Checkbox id="pinned" checked={newsForm.pinned} onCheckedChange={val => setNewsForm({ ...newsForm, pinned: !!val })} />
-                                                        <Label htmlFor="pinned" className="text-sm font-medium leading-none cursor-pointer">Pin</Label>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="news-content">Content</Label>
+                                                        <Textarea id="news-content" value={newsForm.content} onChange={e => setNewsForm({ ...newsForm, content: e.target.value })} placeholder="Details of the announcement..." className="min-h-[150px]" required />
                                                     </div>
-                                                </div>
-                                                <DialogFooter className="pt-4">
-                                                    <Button type="submit" disabled={isLoading} className="w-full">
-                                                        {isLoading ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                                                        {editingNews ? 'Update News' : 'Save News'}
-                                                    </Button>
-                                                </DialogFooter>
-                                            </form>
-                                        </DialogContent>
-                                    </Dialog>
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <div className="flex-1 space-y-2">
+                                                            <Label>Status</Label>
+                                                            <Select value={newsForm.status} onValueChange={val => setNewsForm({ ...newsForm, status: val })}>
+                                                                <SelectTrigger className="w-full">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="Published">Published</SelectItem>
+                                                                    <SelectItem value="Draft">Draft</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2 pt-6">
+                                                            <Checkbox id="pinned" checked={newsForm.pinned} onCheckedChange={val => setNewsForm({ ...newsForm, pinned: !!val })} />
+                                                            <Label htmlFor="pinned" className="text-sm font-medium leading-none cursor-pointer">Pin</Label>
+                                                        </div>
+                                                    </div>
+                                                    <DialogFooter className="pt-4">
+                                                        <Button type="submit" disabled={isLoading} className="w-full">
+                                                            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                                            {editingNews ? 'Update News' : 'Save News'}
+                                                        </Button>
+                                                    </DialogFooter>
+                                                </form>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-3 pb-8">

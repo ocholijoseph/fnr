@@ -25,7 +25,8 @@ const Index = () => {
     const [newsMessage, setNewsMessage] = useState("");
     const station = {
         title: "Freedom Naija Radio",
-        streamUrl: "http://69.197.134.188:8000/live",
+        // Using local proxy to fix playback and avoid mixed content/404 issues
+        streamUrl: "https://player.dreamcode.ng/api/icecast/live",
         thumbnail: "/fulllogo.png",
         isLive: true,
     };
@@ -38,7 +39,8 @@ const Index = () => {
             const data = await response.json();
             console.log("iTunes response:", data);
             if (data.results && data.results.length > 0) {
-                const artworkUrl = data.results[0].artworkUrl100.replace('100x100', '600x600');
+                // Request 200x200 for minimum data usage instead of 600x600
+                const artworkUrl = data.results[0].artworkUrl100.replace('100x100', '200x200');
                 console.log("Found artwork:", artworkUrl);
                 return artworkUrl;
             }
@@ -239,10 +241,10 @@ const Index = () => {
 
             // Set up dynamic polling interval based on error count
             const getPollingInterval = () => {
-                if (metadataErrorCount.current === 0) return 3000; // 3 seconds
-                if (metadataErrorCount.current <= 2) return 5000; // 5 seconds
-                if (metadataErrorCount.current <= 4) return 10000; // 10 seconds
-                return 30000; // 30 seconds for persistent issues
+                if (metadataErrorCount.current === 0) return 15000; // Increased to 15 seconds for data saving
+                if (metadataErrorCount.current <= 2) return 20000; // 20 seconds
+                if (metadataErrorCount.current <= 4) return 30000; // 30 seconds
+                return 60000; // 60 seconds
             };
 
             const intervalId = setTimeout(() => {

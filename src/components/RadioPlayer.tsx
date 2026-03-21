@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart, MessageSquareText, Newspaper, Settings } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, History, Radio, Calendar, Users, Activity, MessageSquare, Heart, MessageSquareText, Newspaper, Settings, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -44,6 +44,27 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
     const userInteractedRef = useRef<boolean>(false);
     const [dataUsage, setDataUsage] = useState<number>(0);
     const lastDataUpdateRef = useRef<number>(Date.now());
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const formatTime = (date: Date) => {
+        return new Intl.DateTimeFormat('en-GB', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        }).format(date);
+    };
 
 
     useEffect(() => {
@@ -398,11 +419,11 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             <audio
                 ref={audioRef}
                 src={station.streamUrl}
-                preload="auto"
+                preload="none"
             />
 
             {/* Top Info Bar */}
-            <div className="flex justify-between items-start w-full px-2 mb-2">
+            <div className="flex justify-between items-start w-full px-1 sm:px-2 mb-2">
                 {/* Listener Count - Top Left */}
                 <div className="flex flex-col items-center">
                     <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white/90 text-sm font-medium border border-white/10 shadow-sm">
@@ -428,7 +449,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     <img
                         src="/fulllogo.png"
                         alt="Freedom Naija Radio Logo"
-                        className="h-28 w-28 transition-all duration-300 group-hover:scale-110 drop-shadow-2xl"
+                        className="h-24 w-24 sm:h-28 sm:w-28 transition-all duration-300 group-hover:scale-110 drop-shadow-2xl"
+                        loading="lazy"
                     />
                 </div>
             </div>
@@ -438,10 +460,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                 {station.title}
             </h1>
 
-            {/* Connection Status */}
-            <div className="flex justify-center">
+            {/* Connection Status & Clock */}
+            <div className="flex flex-col items-center gap-2">
                 <div className={`px-6 py-2 rounded-full font-bold text-sm tracking-wider ${connectionDisplay.className}`}>
                     ● {connectionDisplay.text}
+                </div>
+                <div className="text-[11px] font-medium text-muted-foreground/80 tracking-widest uppercase flex items-center gap-2 bg-secondary/30 px-4 py-1 rounded-full border border-white/5">
+                    <Clock className="w-3 h-3" />
+                    {formatTime(currentTime)}
                 </div>
             </div>
 
@@ -451,7 +477,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     <img
                         src={thumbnail}
                         alt="Now playing"
-                        className="w-20 h-20 rounded-lg object-cover"
+                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover"
+                        loading="lazy"
                     />
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
@@ -477,7 +504,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             </div>
 
             {/* Controls */}
-            <div className="flex items-center justify-center gap-8">
+            <div className="flex items-center justify-center gap-4 sm:gap-8">
                 {/* Play/Pause */}
                 <Button
                     onClick={togglePlay}
@@ -485,14 +512,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                     className="h-16 w-16 rounded-full bg-primary hover:bg-primary/90 transition-transform hover:scale-110"
                 >
                     {isPlaying ? (
-                        <Pause className="h-8 w-8" />
+                        <Pause className="h-6 w-6 sm:h-8 sm:w-8" />
                     ) : (
-                        <Play className="h-8 w-8 ml-1" />
+                        <Play className="h-6 w-6 sm:h-8 sm:w-8 ml-1" />
                     )}
                 </Button>
 
                 {/* Volume */}
-                <div className="flex items-center gap-3 bg-secondary rounded-full px-4 py-2">
+                <div className="flex items-center gap-1.5 sm:gap-3 bg-secondary rounded-full px-2 sm:px-4 py-1.5 sm:py-2">
                     <Button
                         variant="ghost"
                         size="icon"
@@ -517,7 +544,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                         max={100}
                         step={1}
                         min={0}
-                        className="w-24 touch-manipulation"
+                        className="w-16 sm:w-24 touch-manipulation"
                         style={{ touchAction: 'none' }}
                     />
                 </div>

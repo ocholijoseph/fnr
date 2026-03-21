@@ -7,6 +7,16 @@ set -e  # Exit on any error
 
 echo "🚀 Starting Freedom Naija Radio deployment..."
 
+# Health Check: Disk Space
+echo "💾 Checking disk space..."
+DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+if [ "$DISK_USAGE" -gt 95 ]; then
+    echo "❌ CRITICAL: Disk space is at ${DISK_USAGE}%. Cleaning up old logs..."
+    sudo find /var/log -type f -name "*.gz" -delete
+    sudo find /var/log -type f -name "*.1" -delete
+    sudo rm -f /tmp/*.dump
+fi
+
 # Navigate to project directory
 cd /myNewDock/fnr
 
@@ -16,45 +26,17 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# Run linting to ensure code quality (allow warnings)
-echo "🔍 Running linting..."
-npm run lint || echo "⚠️  Linting found issues but continuing deployment..."
-
 # Build the application for production
 echo "🔨 Building application..."
 npm run build
 
-# Restart nginx to apply configuration changes
-echo "🔄 Restarting nginx..."
-sudo systemctl reload nginx
+# Restart API server via PM2
+echo "🔄 Restarting API server..."
+pm2 reload "fnr-api" || pm2 start api-server.js --name "fnr-api"
 
-# Restart API server if pm2 is available
-if command -v pm2 &> /dev/null; then
-    echo "🔄 Restarting API server with PM2..."
-    pm2 reload "fnr-api" || pm2 start api-server.js --name "fnr-api"
-else
-    echo "⚠️  PM2 not found. Manual API server restart may be required."
-fi
+# Refresh Nginx
+echo "🔄 Reloading Nginx..."
+sudo nginx -t && sudo systemctl reload nginx
 
-# Check SSL certificate status
-echo "🔒 Checking SSL certificate..."
-if [ -f "/etc/letsencrypt/live/player.dreamcode.ng/fullchain.pem" ]; then
-    echo "✅ SSL certificate is active and valid"
-else
-    echo "⚠️  SSL certificate not found - please run: sudo certbot --nginx -d player.dreamcode.ng"
-fi
-
-# Verify nginx is running and configuration is valid
-if sudo nginx -t && sudo systemctl is-active --quiet nginx; then
-    echo "✅ Nginx is running successfully"
-else
-    echo "❌ Nginx configuration error"
-    exit 1
-fi
-
-echo "✅ Deployment completed successfully!"
+echo "✅ Deployment and system refresh completed successfully!"
 echo "🌐 Your app is now available at: https://player.dreamcode.ng"
-
-# Show current nginx status
-echo "📊 Nginx status:"
-systemctl status nginx --no-pager -l

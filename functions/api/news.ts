@@ -1,5 +1,7 @@
 // functions/api/news.ts
 
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+
 export async function onRequest(context: any) {
     const { request, env } = context;
 
@@ -27,6 +29,22 @@ export async function onRequest(context: any) {
             }
             const dataRaw = await env.SCROLL_KV.get("news");
             let data = dataRaw ? JSON.parse(dataRaw) : [];
+
+            // Auto-delete unpinned news older than 3 days
+            const now = Date.now();
+            const originalLength = data.length;
+            data = data.filter((item: any) => {
+                // Always keep pinned news
+                if (item.pinned) return true;
+                // Remove unpinned news older than 3 days
+                const createdAt = new Date(item.createdAt).getTime();
+                return (now - createdAt) < THREE_DAYS_MS;
+            });
+
+            // Persist cleanup back to KV if items were removed
+            if (data.length < originalLength) {
+                await env.SCROLL_KV.put("news", JSON.stringify(data));
+            }
 
             // If not admin, only return published ones
             if (!isAdmin) {
