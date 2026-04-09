@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { RadioPlayer } from "@/components/RadioPlayer";
 import { Footer } from "@/components/Footer";
+import { isSupabaseEnabled, subscribeToTable } from "@/lib/supabase";
 
 interface TrackInfo {
     title: string;
@@ -23,6 +24,29 @@ const Index = () => {
     const [bitrate, setBitrate] = useState<number>(128); // Default to 128kbps
     const [scrollConfig, setScrollConfig] = useState<{ overrideEnabled: boolean; overrideMessage: string; scrollType?: "information" | "news" }>({ overrideEnabled: false, overrideMessage: "", scrollType: "information" });
     const [newsMessage, setNewsMessage] = useState("");
+
+    // Load playback history from localStorage on mount
+    useEffect(() => {
+        try {
+            const savedHistory = localStorage.getItem('playbackHistory');
+            if (savedHistory) {
+                const parsedHistory = JSON.parse(savedHistory);
+                setHistory(parsedHistory);
+            }
+        } catch (error) {
+            console.error('Error loading playback history:', error);
+        }
+    }, []);
+
+    // Clear playback history
+    const clearHistory = () => {
+        setHistory([]);
+        try {
+            localStorage.removeItem('playbackHistory');
+        } catch (error) {
+            console.error('Error clearing playback history:', error);
+        }
+    };
     const station = {
         title: "Freedom Naija Radio",
         // Using local proxy to fix playback and avoid mixed content/404 issues
@@ -150,7 +174,6 @@ const Index = () => {
             }
             if (activeSource.bitrate) {
                 // Determine if bitrate is likely in bps or kbps
-                // If bitrate > 1000, it's almost certainly bps (e.g. 128000)
                 let newBitrate = parseInt(activeSource.bitrate, 10);
                 if (newBitrate > 1000) {
                     newBitrate = Math.round(newBitrate / 1000);
@@ -171,17 +194,17 @@ const Index = () => {
 
                 console.log("New track:", newTrack);
 
-                setCurrentTrack(prevTrack => {
-                    if (prevTrack) {
-                        setHistory(prev => [{
-                            ...prevTrack,
-                            id: currentTrackId || Date.now().toString(),
-                            playedAt: new Date().toISOString()
-                        }, ...prev].slice(0, 10));
-                    }
-                    return newTrack;
-                });
+                // Add previous track to history if it exists
+                if (currentTrack) {
+                    const historyItem: HistoryItem = {
+                        ...currentTrack,
+                        id: currentTrackId || Date.now().toString(),
+                        playedAt: new Date().toISOString()
+                    };
+                    setHistory(prev => [historyItem, ...prev].slice(0, 20)); // Keep last 20 tracks
+                }
 
+                setCurrentTrack(newTrack);
                 setCurrentTrackId(newTrackId);
                 lastTrackRef.current = trackKey;
             } else {
@@ -190,14 +213,8 @@ const Index = () => {
         } catch (error) {
             metadataErrorCount.current++;
             console.error(`Error fetching metadata (${metadataErrorCount.current}/3):`, error);
-
-            // If we've had 3 consecutive errors, implement exponential backoff
-            if (metadataErrorCount.current >= 3) {
-                console.log("Multiple consecutive errors, implementing backoff...");
-                // The useEffect will handle the backoff by checking the error count
-            }
         }
-    }, []);
+    }, [currentTrack, currentTrackId]);
 
     const fetchScrollConfig = useCallback(async () => {
         try {
@@ -206,8 +223,24 @@ const Index = () => {
                 const data = await response.json();
                 setScrollConfig(data);
 
-                // If News is selected, fetch news items to build the message
+                // Always fetch news headlines if scroll type is news
                 if (data.scrollType === "news") {
+                    const allTitles: string[] = [];
+
+                    // 1. Fetch aggregated headlines
+                    try {
+                        const headlinesRes = await fetch('/api/news-headlines');
+                        if (headlinesRes.ok) {
+                            const hData = await headlinesRes.json();
+                            if (hData.headlines && Array.isArray(hData.headlines)) {
+                                allTitles.push(...hData.headlines);
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Error fetching aggregated headlines:", err);
+                    }
+
+                    // 2. Fetch manual news items
                     try {
                         const newsRes = await fetch('/api/news');
                         if (newsRes.ok) {
@@ -215,16 +248,16 @@ const Index = () => {
                             const publishedNews = newsData
                                 .filter((item: any) => item.status === "Published")
                                 .map((item: any) => item.title);
-
-                            if (publishedNews.length > 0) {
-                                // Add extra space at the end of the news message for better marquee separation
-                                setNewsMessage("NEWS: " + publishedNews.join(" | ") + "          ");
-                            } else {
-                                setNewsMessage("Stay tuned for latest updates!");
-                            }
+                            allTitles.push(...publishedNews);
                         }
                     } catch (err) {
-                        console.error("Error fetching news for scroll:", err);
+                        console.error("Error fetching manual news:", err);
+                    }
+
+                    if (allTitles.length > 0) {
+                        setNewsMessage("📰 NEWS UPDATE 📰  " + allTitles.join("  🔸  ") + "  🔄  ");
+                    } else {
+                        setNewsMessage("📰 Stay tuned for latest updates! 📰");
                     }
                 } else {
                     setNewsMessage("");
@@ -239,12 +272,11 @@ const Index = () => {
         const fetchDataAndSchedule = () => {
             fetchMetadata();
 
-            // Set up dynamic polling interval based on error count
             const getPollingInterval = () => {
-                if (metadataErrorCount.current === 0) return 15000; // Increased to 15 seconds for data saving
-                if (metadataErrorCount.current <= 2) return 20000; // 20 seconds
-                if (metadataErrorCount.current <= 4) return 30000; // 30 seconds
-                return 60000; // 60 seconds
+                if (metadataErrorCount.current === 0) return 15000;
+                if (metadataErrorCount.current <= 2) return 20000;
+                if (metadataErrorCount.current <= 4) return 30000;
+                return 60000;
             };
 
             const intervalId = setTimeout(() => {
@@ -264,7 +296,22 @@ const Index = () => {
     useEffect(() => {
         fetchScrollConfig();
         const intervalId = setInterval(fetchScrollConfig, 20000); // Poll every 20 seconds
-        return () => clearInterval(intervalId);
+
+        let unsubscribe: (() => Promise<void>) | undefined;
+        if (isSupabaseEnabled()) {
+            subscribeToTable<any>('scroll', () => {
+                fetchScrollConfig();
+            }).then((cleanup) => {
+                unsubscribe = cleanup;
+            }).catch((error) => {
+                console.warn('Supabase realtime scroll subscription failed:', error);
+            });
+        }
+
+        return () => {
+            clearInterval(intervalId);
+            if (unsubscribe) unsubscribe();
+        };
     }, [fetchScrollConfig]);
 
     return (
@@ -277,11 +324,12 @@ const Index = () => {
                 listenerCount={listenerCount}
                 bitrate={bitrate}
                 overrideMessage={
-                    scrollConfig.overrideEnabled
-                        ? (scrollConfig.scrollType === "news" ? (newsMessage || "NEWS: Fetching latest updates...") : scrollConfig.overrideMessage)
-                        : undefined
+                    (scrollConfig.overrideEnabled && scrollConfig.overrideMessage.trim())
+                        ? scrollConfig.overrideMessage
+                        : (scrollConfig.scrollType === "news" ? (newsMessage || "📰 Loading latest news updates... 📰") : undefined)
                 }
                 scrollType={scrollConfig.scrollType}
+                onClearHistory={clearHistory}
             />
             <Footer />
         </div>

@@ -1,7 +1,7 @@
 # 🚀 Freedom Naija Radio — Android Play Store Deployment Guide
 
 ## App Details
-- **App ID (Package Name):** `com.kingdomfmx.app`
+- **App ID (Package Name):** `com.fnradio.app`
 - **App Name:** Freedom Naija Radio
 - **Framework:** Capacitor 6 + Vite + React + TypeScript
 

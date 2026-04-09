@@ -29,9 +29,10 @@ interface RadioPlayerProps {
     bitrate?: number;
     overrideMessage?: string;
     scrollType?: "information" | "news";
+    onClearHistory?: () => void;
 }
 
-export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128, overrideMessage, scrollType = "information" }: RadioPlayerProps) => {
+export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [], listenerCount = 0, bitrate = 128, overrideMessage, scrollType = "information", onClearHistory }: RadioPlayerProps) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(70);
     const [isMuted, setIsMuted] = useState(false);
@@ -496,8 +497,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                             className="whitespace-nowrap animate-marquee-seamless flex w-max"
                             style={marqueeStyle}
                         >
-                            <span className="text-lg font-semibold px-12">{displayText}</span>
-                            <span className="text-lg font-semibold px-12">{displayText}</span>
+                            <span className="text-lg font-semibold px-12 font-['Inter']">{displayText}</span>
+                            <span className="text-lg font-semibold px-12 font-['Inter']">{displayText}</span>
                         </div>
                     </div>
                 </div>
@@ -564,7 +565,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
                         <DialogHeader>
                             <DialogTitle>Playback History</DialogTitle>
                         </DialogHeader>
-                        <PlaybackHistory history={history} currentTrackId={currentTrackId} />
+                        <PlaybackHistory history={history} currentTrackId={currentTrackId} onClearHistory={onClearHistory} />
                     </DialogContent>
                 </Dialog>
 

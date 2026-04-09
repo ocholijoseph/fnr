@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import Index from "./pages/Index";
 import Embed from "./pages/Embed";
 import Admin from "./pages/Admin";
+import SocialAdmin from "./pages/SocialAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => {
                         <Route path="/" element={<Index />} />
                         <Route path="/embed" element={<Embed />} />
                         <Route path="/admin" element={<Admin />} />
+                        <Route path="/social" element={<SocialAdmin />} />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />
                     </Routes>
