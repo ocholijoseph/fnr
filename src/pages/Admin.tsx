@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Save, RefreshCw, Settings, Lock, LogIn, Newspaper, Plus, Trash2, Pencil, Pin, Globe, Clock, Zap, Radio, AlertTriangle, CheckCircle2, XCircle, Share2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Save, RefreshCw, Settings, Lock, LogIn, Newspaper, Plus, Trash2, Pencil, Pin, Globe, Clock, Zap, Radio, AlertTriangle, CheckCircle2, XCircle, Share2, ExternalLink, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SegmentedSwitch from "@/components/SegmentedSwitch";
+import NewsTicker from "@/components/NewsTicker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getHeadlines, triggerFetch, getAggregatorStatus, deleteHeadline, updateHeadline, type HeadlinesResponse, type AggregatorStatus, type HeadlineItem } from "@/lib/newsapi-service";
@@ -46,7 +47,7 @@ const Admin = () => {
     const [headlinesData, setHeadlinesData] = useState<HeadlinesResponse | null>(null);
     const [aggStatus, setAggStatus] = useState<AggregatorStatus | null>(null);
     const [isFetchingHeadlines, setIsFetchingHeadlines] = useState(false);
-    const [selectedProvider, setSelectedProvider] = useState<string>('');
+    const [selectedProvider, setSelectedProvider] = useState<string>('auto');
     const [isHeadlineDialogOpen, setIsHeadlineDialogOpen] = useState(false);
     const [editingHeadline, setEditingHeadline] = useState<HeadlineItem | null>(null);
     const [headlineForm, setHeadlineForm] = useState({ title: '', summary: '', source: '' });
@@ -66,10 +67,13 @@ const Admin = () => {
                 headers: getAuthHeader()
             });
             if (response.ok) {
-                const data = await response.json();
-                setOverrideEnabled(data.overrideEnabled);
-                setOverrideMessage(data.overrideMessage || "");
-                setScrollType(data.scrollType || "information");
+                const rawData = await response.json();
+                const data = Array.isArray(rawData) ? rawData[0] : rawData;
+                if (data) {
+                    setOverrideEnabled(data.override_enabled ?? data.overrideEnabled ?? false);
+                    setOverrideMessage(data.override_message ?? data.overrideMessage ?? "");
+                    setScrollType(data.scroll_type ?? data.scrollType ?? "information");
+                }
             } else if (response.status === 401) {
                 toast.error("Unauthorized. Check password.");
                 setIsAuthenticated(false);
@@ -87,9 +91,7 @@ const Admin = () => {
     const fetchSubmissions = async () => {
         if (!isAuthenticated) return;
         try {
-            const [newsRes] = await Promise.all([
-                fetch('/api/news', { headers: getAuthHeader() })
-            ]);
+            const newsRes = await fetch('/api/news', { headers: getAuthHeader() });
             if (newsRes.status === 401) {
                 setIsAuthenticated(false);
                 return;
@@ -124,27 +126,6 @@ const Admin = () => {
             toast.error("Error saving news");
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleFetchLatestNews = async () => {
-        setIsFetchingNews(true);
-        try {
-            const response = await fetch('/api/news/fetch', {
-                method: 'POST',
-                headers: getAuthHeader()
-            });
-            if (response.ok) {
-                toast.success("Latest news fetched successfully");
-                fetchSubmissions();
-            } else {
-                const errData = await response.json().catch(() => ({}));
-                toast.error(errData.error || "Failed to fetch news");
-            }
-        } catch (error) {
-            toast.error("Error connecting to news service");
-        } finally {
-            setIsFetchingNews(false);
         }
     };
 
@@ -296,10 +277,6 @@ const Admin = () => {
 
     const handleDeleteHeadline = async (id: string) => {
         if (!confirm('Delete this headline from the live feed?')) return;
-        setHeadlinesData(prev => prev ? ({
-            ...prev,
-            fullHeadlines: prev.fullHeadlines.filter(h => h.id !== id)
-        }) : prev);
         try {
             await deleteHeadline(id);
             toast.success('Headline deleted');
@@ -308,268 +285,386 @@ const Admin = () => {
         } catch (error: any) {
             console.error('Error deleting headline:', error);
             toast.error(error?.message || 'Failed to delete headline');
-            await loadHeadlines();
-            await loadAggStatus();
         }
     };
 
+    const previewMessage = (scrollType === 'news' && headlinesData?.headlines?.length) 
+        ? "📰 NEWS UPDATE 📰  " + headlinesData.headlines.join("  🔸  ") 
+        : (overrideEnabled && overrideMessage) ? overrideMessage : "Freedom Naija Radio — Live Stream";
+
     return (
-        <div className="h-full w-full max-w-[362px] mx-auto flex flex-col">
-            <div className="h-full w-full overflow-y-auto overflow-x-hidden flex-grow">
-                <div className="h-full w-full py-4 px-4 space-y-6 flex flex-col">
-                    <header className="flex items-center justify-between">
-                        <Button variant="ghost" onClick={() => navigate("/")} className="gap-2 text-xs sm:text-sm">
-                            <ArrowLeft className="w-4 h-4" /> Back to Player
-                        </Button>
-                        <h1 className="text-2xl font-bold">Admin</h1>
-                        <div className="flex gap-2">
-                            {isAuthenticated && (
-                                <Button variant="outline" size="sm" onClick={handleLogout} className="text-xs">
-                                    Logout
-                                </Button>
-                            )}
-                            <Button variant="outline" size="icon" onClick={() => { fetchConfig(); fetchSubmissions(); loadHeadlines(); loadAggStatus(); }} disabled={isLoading || !isAuthenticated}>
-                                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+        <div className="min-h-screen w-full bg-background flex flex-col">
+            <div className="max-w-5xl w-full mx-auto flex flex-col flex-grow">
+                <div className="py-6 px-4 space-y-8">
+                    <header className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-border/50 pb-6">
+                        <div className="flex items-center gap-4">
+                            <Button variant="ghost" onClick={() => navigate("/")} className="gap-2 h-10">
+                                <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Back to Player</span>
                             </Button>
+                            <div>
+                                <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                                <p className="text-sm text-muted-foreground">Manage your station's live content</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {isAuthenticated && (
+                                <>
+                                    <div className="hidden md:flex flex-col items-end mr-2">
+                                        <span className="text-[10px] text-muted-foreground uppercase font-bold">Session</span>
+                                        <span className="text-xs font-mono text-primary flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3" /> Active
+                                        </span>
+                                    </div>
+                                    <Button variant="outline" size="sm" onClick={handleLogout} className="h-10 hover:bg-destructive hover:text-white transition-colors">
+                                        Logout
+                                    </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => { fetchConfig(); fetchSubmissions(); loadHeadlines(); loadAggStatus(); }} 
+                                        disabled={isLoading || !isAuthenticated}
+                                        className="h-10 w-10"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </header>
 
                     {!isAuthenticated ? (
-                        <div className="flex flex-col items-center justify-center pt-20">
-                            <Card className="w-full">
+                        <div className="flex flex-col items-center justify-center pt-20 max-w-md mx-auto">
+                            <Card className="w-full border-primary/20 shadow-2xl overflow-hidden">
+                                <div className="bg-primary h-1.5 w-full" />
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Lock className="w-5 h-5 text-primary" /> Admin Login
+                                    <CardTitle className="flex items-center gap-2 text-2xl">
+                                        <Lock className="w-6 h-6 text-primary" /> Admin Login
                                     </CardTitle>
-                                    <CardDescription>Enter your password to access dashboard</CardDescription>
+                                    <CardDescription>Authentication required to access station controls</CardDescription>
                                 </CardHeader>
                                 <form onSubmit={handleLogin}>
                                     <CardContent className="space-y-4">
                                         <div className="space-y-2">
-                                            <Label htmlFor="password">Password</Label>
+                                            <Label htmlFor="password">Security Password</Label>
                                             <Input
                                                 id="password"
                                                 type="password"
                                                 value={password}
                                                 onChange={(e) => setPassword(e.target.value)}
-                                                placeholder="Enter admin password"
+                                                placeholder="••••••••••••"
                                                 autoFocus
+                                                className="h-12 text-lg"
                                             />
                                         </div>
                                     </CardContent>
                                     <CardFooter>
-                                        <Button type="submit" className="w-full gap-2">
-                                            <LogIn className="w-4 h-4" /> Login
+                                        <Button type="submit" className="w-full gap-2 h-12 text-lg">
+                                            <LogIn className="w-5 h-5" /> Access Dashboard
                                         </Button>
                                     </CardFooter>
                                 </form>
                             </Card>
                         </div>
                     ) : (
-                        <Tabs defaultValue="scroll" className="w-full">
-                            <TabsList className="grid w-full grid-cols-3 mb-8">
-                                <TabsTrigger value="scroll" className="gap-1 text-xs sm:text-sm">
-                                    <Settings className="w-3 h-3" /> Scroll
+                        <Tabs defaultValue="scroll" className="w-full space-y-6">
+                            <TabsList className="w-full max-w-md mx-auto h-12 p-1 bg-secondary/50 backdrop-blur-sm border border-border/50">
+                                <TabsTrigger value="scroll" className="flex-1 gap-2 data-[state=active]:bg-background">
+                                    <Zap className="w-4 h-4" /> Live
                                 </TabsTrigger>
-                                <TabsTrigger value="news" className="gap-1 text-xs sm:text-sm">
-                                    <Newspaper className="w-3 h-3" /> News
+                                <TabsTrigger value="news" className="flex-1 gap-2 data-[state=active]:bg-background">
+                                    <Newspaper className="w-4 h-4" /> Archive
                                 </TabsTrigger>
-                                <TabsTrigger value="social" className="gap-1 text-xs sm:text-sm" onClick={() => navigate("/social")}>
-                                    <Share2 className="w-3 h-3" /> Social
+                                <TabsTrigger value="social" className="flex-1 gap-2 data-[state=active]:bg-background" onClick={() => navigate("/social")}>
+                                    <Share2 className="w-4 h-4" /> Socials
                                 </TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="scroll" className="space-y-6">
-                                <main className="space-y-6 bg-card p-4 rounded-xl border border-border shadow-sm">
-                                    <div className="space-y-4">
-                                        <div className="space-y-2 pb-4 border-b border-border">
-                                            <Label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                                                Scroll Content Type
-                                            </Label>
-                                            <SegmentedSwitch
-                                                options={[
-                                                    { label: "Information", value: "information" },
-                                                    { label: "News", value: "news" }
-                                                ]}
-                                                activeValue={scrollType}
-                                                onChange={(val) => setScrollType(val as any)}
-                                            />
-                                        </div>
+                            {/* Live Preview Ticker */}
+                            <div className="space-y-4">
+                                <label className="text-sm font-semibold text-foreground/70 uppercase tracking-tighter">Live Preview</label>
+                                <NewsTicker 
+                                    message={
+                                        (overrideEnabled && overrideMessage.trim())
+                                            ? overrideMessage
+                                            : (scrollType === "news" ? (headlinesData?.fullHeadlines?.length > 0 ? "📰 NEWS UPDATE 📰  " + headlinesData.fullHeadlines.map(h => `${h.title} — ${h.source}`).join("  🔸  ") + "  🔄  " : "📰 Loading news...") : "Freedom Naija Radio")
+                                    }
+                                />
+                            </div>
 
-                                        <div className="flex items-center justify-between pb-4 border-b border-border">
-                                            <div className="space-y-0.5">
-                                                <Label htmlFor="override-toggle" className="text-base font-semibold">
-                                                    Enable Information Scroll Override
-                                                </Label>
-                                                <p className="text-sm text-muted-foreground">
-                                                    This replaces the live Artist/Song metadata.
-                                                </p>
-                                            </div>
-                                            <Switch
-                                                id="override-toggle"
-                                                checked={overrideEnabled}
-                                                onCheckedChange={setOverrideEnabled}
-                                            />
-                                        </div>
+                            <TabsContent value="scroll" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                <div className="lg:col-span-12">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Main Controls Card */}
+                                        <Card className="shadow-lg border-border/50 overflow-hidden">
+                                            <CardHeader className="bg-secondary/20 border-b border-border/30">
+                                                <CardTitle className="text-lg flex items-center gap-2">
+                                                    <Settings className="w-5 h-5 text-primary" /> Display Settings
+                                                </CardTitle>
+                                                <CardDescription>Configure what appears on the player's scrolling ticker</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="space-y-6 pt-6">
+                                                <div className="space-y-3">
+                                                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                                        Ticker Type
+                                                    </Label>
+                                                    <SegmentedSwitch
+                                                        options={[
+                                                            { label: "Station Info", value: "information" },
+                                                            { label: "Live News Feed", value: "news" }
+                                                        ]}
+                                                        activeValue={scrollType}
+                                                        onChange={(val) => setScrollType(val as any)}
+                                                    />
+                                                </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="message" className="text-sm font-medium">
-                                                Override Message
-                                            </Label>
-                                            <Textarea
-                                                id="message"
-                                                placeholder="e.g. Welcome to Freedom Naija Radio!"
-                                                value={overrideMessage}
-                                                onChange={(e) => setOverrideMessage(e.target.value)}
-                                                className="min-h-[100px] resize-none"
-                                                maxLength={2000}
-                                            />
-                                            <div className="text-right text-[10px] text-muted-foreground">
-                                                {overrideMessage.length}/2000
-                                            </div>
-                                        </div>
+                                                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg border border-border/50">
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="override-toggle" className="text-sm font-bold">
+                                                            Manual Override
+                                                        </Label>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Force display the message below
+                                                        </p>
+                                                    </div>
+                                                    <Switch
+                                                        id="override-toggle"
+                                                        checked={overrideEnabled}
+                                                        onCheckedChange={setOverrideEnabled}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="message" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                                        Display Message
+                                                    </Label>
+                                                    <Textarea
+                                                        id="message"
+                                                        placeholder="e.g. Welcome to Freedom Naija Radio!"
+                                                        value={overrideMessage}
+                                                        onChange={(e) => setOverrideMessage(e.target.value)}
+                                                        className="min-h-[120px] resize-none text-base border-border/50 focus:border-primary/50"
+                                                        maxLength={2000}
+                                                    />
+                                                    <div className="flex justify-between items-center text-[10px]">
+                                                        <p className="text-muted-foreground">Markdown supported for links</p>
+                                                        <p className={`${overrideMessage.length > 1800 ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
+                                                            {overrideMessage.length}/2000
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                            <CardFooter className="bg-secondary/10 border-t border-border/30">
+                                                <Button
+                                                    className="w-full gap-2 h-12 text-base font-bold shadow-lg shadow-primary/20"
+                                                    onClick={handleSave}
+                                                    disabled={isSaving}
+                                                >
+                                                    {isSaving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                                    Apply Changes
+                                                </Button>
+                                            </CardFooter>
+                                        </Card>
+
+                                        {/* Aggregator Status Card */}
+                                        <Card className="shadow-lg border-border/50 flex flex-col">
+                                            <CardHeader className="bg-secondary/20 border-b border-border/30">
+                                                <div className="flex items-center justify-between">
+                                                    <CardTitle className="text-lg flex items-center gap-2">
+                                                        <Radio className="w-5 h-5 text-primary" /> Aggregator Engine
+                                                    </CardTitle>
+                                                    <Badge className={`${aggStatus?.lastError ? 'bg-destructive' : 'bg-emerald-500'} text-white`}>
+                                                        {aggStatus?.lastError ? 'FAILED' : 'ONLINE'}
+                                                    </Badge>
+                                                </div>
+                                                <CardDescription>Real-time status of news fetching sources</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="space-y-6 pt-6 flex-grow">
+                                                {/* Source status indicators */}
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {['newsapi', 'newsdata', 'gnews'].map((source) => {
+                                                        const sourceData = aggStatus?.providerRotation?.find(p => p.name.toLowerCase() === source.toLowerCase());
+                                                        const label = PROVIDER_LABELS[source];
+                                                        return (
+                                                            <div key={source} className={`p-4 rounded-xl border flex items-center justify-between transition-all ${sourceData?.isCurrent ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-secondary/20 border-border/30'}`}>
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`p-2 rounded-full ${sourceData?.isCurrent ? 'bg-primary text-white animate-pulse' : 'bg-muted text-muted-foreground'}`}>
+                                                                        <Globe className="w-4 h-4" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-sm font-bold leading-tight">{label?.label}</p>
+                                                                        <p className="text-[10px] text-muted-foreground uppercase">{sourceData?.isNext ? 'Next up' : sourceData?.isCurrent ? 'Currently fetching' : 'Idle'}</p>
+                                                                    </div>
+                                                                </div>
+                                                                {sourceData?.lastError ? (
+                                                                    <div className="flex items-center gap-1 text-destructive">
+                                                                        <AlertTriangle className="w-4 h-4" />
+                                                                        <span className="text-[10px] font-bold">Error</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <CheckCircle2 className={`w-5 h-5 ${sourceData?.isCurrent ? 'text-primary' : 'text-emerald-500/50'}`} />
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {Object.entries(headlinesData?.stats || {}).filter(([k]) => k !== 'total').map(([key, value]) => (
+                                                        <div key={key} className="bg-secondary/20 p-3 rounded-xl border border-border/50 text-center">
+                                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{key}</p>
+                                                            <p className="text-xl font-bold">{value as number}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </CardContent>
+                                            <CardFooter className="bg-secondary/10 border-t border-border/30 gap-3">
+                                                <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                                                    <SelectTrigger className="w-full h-11 bg-background">
+                                                        <SelectValue placeholder="Automatic Rotation" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="auto">🔄 Automatic Rotation</SelectItem>
+                                                        <SelectItem value="newsapi">🍊 NewsAPI</SelectItem>
+                                                        <SelectItem value="newsdata">🔹 NewsData</SelectItem>
+                                                        <SelectItem value="gnews">🌿 GNews</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <Button 
+                                                    variant="secondary" 
+                                                    className="h-11 px-4 gap-2 font-bold" 
+                                                    onClick={handleManualFetch} 
+                                                    disabled={isFetchingHeadlines}
+                                                >
+                                                    {isFetchingHeadlines ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                                                    Fetch
+                                                </Button>
+                                            </CardFooter>
+                                        </Card>
                                     </div>
 
-                                    <Button
-                                        className="w-full gap-2 h-12 text-base font-bold"
-                                        onClick={handleSave}
-                                        disabled={isSaving}
-                                    >
-                                        {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                        Save & Update Scroll
-                                    </Button>
-                                </main>
+                                    {/* Headline Management */}
+                                    <div className="mt-8 space-y-4">
+                                        <div className="flex items-center justify-between px-2">
+                                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                                <Newspaper className="w-6 h-6 text-primary" />
+                                                Live Ticker Feed
+                                                <Badge variant="secondary" className="ml-2 bg-primary/10 text-primary border-none">
+                                                    {headlinesData?.fullHeadlines?.length || 0} items
+                                                </Badge>
+                                            </h3>
+                                            <div className="text-[11px] text-muted-foreground flex items-center gap-1 bg-secondary/30 px-3 py-1 rounded-full border border-border/50">
+                                                <Clock className="w-3 h-3" />
+                                                Sync: {headlinesData?.lastUpdated ? new Date(headlinesData.lastUpdated).toLocaleTimeString() : 'Never'}
+                                            </div>
+                                        </div>
 
-                                {/* Aggregator Section */}
-                                <Card className="border-primary/20 bg-primary/5">
-                                    <CardHeader className="pb-2">
-                                        <div className="flex items-center justify-between">
-                                            <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                                <Zap className="w-4 h-4 text-primary" /> News Aggregator
-                                            </CardTitle>
-                                            <Badge variant={aggStatus?.lastError ? 'destructive' : 'default'} className="text-[9px] h-4">
-                                                {aggStatus?.lastError ? 'Error' : 'Operational'}
-                                            </Badge>
-                                        </div>
-                                        <CardDescription className="text-[10px]">Auto-fetches latest news for the ticker.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div className="bg-background/50 p-2 rounded-lg border border-border/50 text-center">
-                                                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Nigeria</p>
-                                                <p className="text-lg font-bold">{headlinesData?.stats?.nigeria || 0}</p>
+                                        {!headlinesData?.fullHeadlines?.length ? (
+                                            <div className="text-center py-20 bg-card rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-4">
+                                                <div className="p-4 bg-muted rounded-full">
+                                                    <Newspaper className="w-12 h-12 text-muted-foreground/30" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="font-bold text-lg">No active headlines</p>
+                                                    <p className="text-sm text-muted-foreground">Trigger a manual fetch to populate the live feed</p>
+                                                </div>
+                                                <Button variant="outline" onClick={handleManualFetch}>Fetch Now</Button>
                                             </div>
-                                            <div className="bg-background/50 p-2 rounded-lg border border-border/50 text-center">
-                                                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Africa</p>
-                                                <p className="text-lg font-bold">{headlinesData?.stats?.africa || 0}</p>
-                                            </div>
-                                            <div className="bg-background/50 p-2 rounded-lg border border-border/50 text-center">
-                                                <p className="text-[10px] text-muted-foreground uppercase font-semibold">World</p>
-                                                <p className="text-lg font-bold">{headlinesData?.stats?.world || 0}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
-                                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Last updated:</span>
-                                            <span className="font-mono">{headlinesData?.lastUpdated ? new Date(headlinesData.lastUpdated).toLocaleString() : 'Never'}</span>
-                                        </div>
-                                    </CardContent>
-                                    <CardFooter className="flex gap-2">
-                                        <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                                            <SelectTrigger className="w-[120px] h-8 text-xs">
-                                                <SelectValue placeholder="Auto" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="auto">Auto (Next)</SelectItem>
-                                                <SelectItem value="newsapi">NewsAPI</SelectItem>
-                                                <SelectItem value="newsdata">NewsData</SelectItem>
-                                                <SelectItem value="gnews">GNews</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <Button size="sm" className="flex-1 gap-2 h-8" onClick={handleManualFetch} disabled={isFetchingHeadlines}>
-                                            {isFetchingHeadlines ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                                            Fetch Now
-                                        </Button>
-                                    </CardFooter>
-                                </Card>
-
-                                {/* Headlines List */}
-                                <div className="space-y-2 pb-8">
-                                    <h3 className="text-sm font-semibold flex items-center gap-2 px-1">
-                                        <Newspaper className="w-4 h-4 text-primary" />
-                                        Live Headlines ({headlinesData?.fullHeadlines?.length || 0})
-                                    </h3>
-                                    {!headlinesData?.fullHeadlines?.length ? (
-                                        <div className="text-center py-8 text-muted-foreground bg-card rounded-xl border border-dashed border-border text-xs">
-                                            No headlines yet.
-                                        </div>
-                                    ) : (
-                                        headlinesData.fullHeadlines.slice(0, 10).map((h: HeadlineItem, i: number) => (
-                                            <Card key={h.id || i} className="border-l-2 border-l-primary/30">
-                                                <CardContent className="p-3">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-medium leading-tight line-clamp-2">{h.title}</p>
-                                                            <div className="flex items-center gap-2 mt-2">
-                                                                <Badge variant={REGION_BADGES[h.region]?.variant || 'outline'} className="text-[8px] h-3 px-1">
-                                                                    {REGION_BADGES[h.region]?.label || h.region}
-                                                                </Badge>
-                                                                <span className="text-[9px] text-muted-foreground">{h.source}</span>
+                                        ) : (
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
+                                                {headlinesData.fullHeadlines.map((h: HeadlineItem, i: number) => (
+                                                    <Card key={h.id || i} className="group hover:border-primary/50 transition-all duration-200 border-border/50 overflow-hidden bg-card/50 backdrop-blur-sm">
+                                                        <div className="p-4 flex gap-4">
+                                                            <div className="flex-1 min-w-0 space-y-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Badge variant={REGION_BADGES[h.region]?.variant || 'outline'} className="text-[9px] h-4 px-1.5 font-bold uppercase tracking-tighter">
+                                                                        {REGION_BADGES[h.region]?.label || h.region}
+                                                                    </Badge>
+                                                                    <span className="text-[10px] font-bold text-primary tracking-widest uppercase truncate max-w-[100px] opacity-70 group-hover:opacity-100">{h.source}</span>
+                                                                </div>
+                                                                <p className="text-sm font-bold leading-tight line-clamp-2 underline-offset-4 decoration-primary/20 hover:underline cursor-help" title={h.title}>
+                                                                    {h.title}
+                                                                </p>
+                                                                <p className="text-[10px] text-muted-foreground line-clamp-1 italic">{h.summary || 'No summary provided'}</p>
+                                                            </div>
+                                                            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
+                                                                <Button variant="secondary" size="icon" className="h-8 w-8 hover:bg-primary hover:text-white" onClick={() => openEditHeadline(h)}>
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                                <Button variant="secondary" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white" onClick={() => handleDeleteHeadline(h.id)}>
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                                <Button variant="secondary" size="icon" className="h-8 w-8" asChild>
+                                                                    <a href={h.url} target="_blank" rel="noopener noreferrer">
+                                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                                    </a>
+                                                                </Button>
                                                             </div>
                                                         </div>
-                                                        <div className="flex gap-1">
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEditHeadline(h)}>
-                                                                <Pencil className="w-3 h-3" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteHeadline(h.id)}>
-                                                                <Trash2 className="w-3 h-3" />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        ))
-                                    )}
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </TabsContent>
 
-                            <TabsContent value="news" className="space-y-4 text-left">
-                                <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border shadow-sm">
-                                    <h2 className="text-lg font-bold flex items-center gap-2">
-                                        <Newspaper className="w-5 h-5 text-primary" />
-                                        News Items
-                                    </h2>
-                                    <Button size="sm" className="gap-2" onClick={() => { setEditingNews(null); setNewsForm({ title: "", content: "", status: "Published", pinned: false }); setIsNewsDialogOpen(true); }}>
-                                        <Plus className="w-4 h-4" /> Add
+                            <TabsContent value="news" className="space-y-6">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-secondary/20 p-6 rounded-2xl border border-border/50">
+                                    <div className="space-y-1">
+                                        <h2 className="text-2xl font-bold flex items-center gap-2">
+                                            <Archive className="w-6 h-6 text-primary" />
+                                            Manual News Items
+                                        </h2>
+                                        <p className="text-sm text-muted-foreground">Manage static news articles and announcements</p>
+                                    </div>
+                                    <Button size="lg" className="shadow-lg shadow-primary/20 gap-2 h-12 w-full sm:w-auto" onClick={() => { setEditingNews(null); setNewsForm({ title: "", content: "", status: "Published", pinned: false }); setIsNewsDialogOpen(true); }}>
+                                        <Plus className="w-5 h-5" /> Create Article
                                     </Button>
                                 </div>
 
-                                <div className="space-y-3 pb-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-12">
                                     {news.length === 0 ? (
-                                        <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-dashed border-border">
-                                            No manual news items.
+                                        <div className="col-span-full text-center py-24 text-muted-foreground bg-card rounded-2xl border border-dashed border-border flex flex-col items-center gap-3">
+                                            <Newspaper className="w-12 h-12 text-muted-foreground/20" />
+                                            <p>No manual news items currently exist.</p>
                                         </div>
                                     ) : (
                                         news.map((item: any) => (
-                                            <Card key={item.id} className={`${item.pinned ? 'border-primary/50 bg-primary/5' : ''}`}>
-                                                <CardHeader className="pb-2 p-4">
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="flex items-center gap-2">
-                                                            {item.pinned && <Pin className="w-3 h-3 text-primary fill-primary" />}
-                                                            <Badge variant={item.status === 'Published' ? 'default' : 'secondary'} className="text-[8px]">
-                                                                {item.status.toUpperCase()}
-                                                            </Badge>
+                                            <Card key={item.id} className={`group hover:scale-[1.02] transition-all duration-200 border-border/50 ${item.pinned ? 'bg-primary/5 border-primary/20' : ''}`}>
+                                                <CardHeader className="pb-4 p-5 space-y-4">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                {item.pinned && <Badge className="h-5 gap-1 bg-primary px-1.5"><Pin className="w-3 h-3 fill-white" /> PINNED</Badge>}
+                                                                <Badge variant={item.status === 'Published' ? 'default' : 'secondary'} className="text-[9px] h-5 tracking-widest font-bold">
+                                                                    {item.status.toUpperCase()}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                <Clock className="w-3 h-3" /> {new Date(item.created_at || Date.now()).toLocaleDateString()}
+                                                            </div>
                                                         </div>
                                                         <div className="flex gap-1">
-                                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditNews(item)}>
-                                                                <Pencil className="w-3 h-3" />
+                                                            <Button variant="secondary" size="icon" className="h-8 w-8 hover:bg-primary hover:text-white" onClick={() => openEditNews(item)}>
+                                                                <Pencil className="w-3.5 h-3.5" />
                                                             </Button>
-                                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteNews(item.id)}>
-                                                                <Trash2 className="w-3 h-3" />
+                                                            <Button variant="secondary" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white" onClick={() => handleDeleteNews(item.id)}>
+                                                                <Trash2 className="w-3.5 h-3.5" />
                                                             </Button>
                                                         </div>
                                                     </div>
-                                                    <CardTitle className="text-sm line-clamp-1 mt-1">{item.title}</CardTitle>
+                                                    <CardTitle className="text-base font-bold leading-snug line-clamp-2 h-12">
+                                                        {item.title}
+                                                    </CardTitle>
+                                                    <CardDescription className="text-xs line-clamp-3 min-h-[48px]">
+                                                        {item.content || 'No content provided'}
+                                                    </CardDescription>
                                                 </CardHeader>
+                                                <CardFooter className="pt-0 p-5 px-5">
+                                                    <Button variant="ghost" size="sm" className="w-full h-8 text-xs font-bold gap-2 hover:bg-primary/10 hover:text-primary" onClick={() => openEditNews(item)}>
+                                                        Quick Edit Details <ArrowLeft className="w-3 h-3 rotate-180" />
+                                                    </Button>
+                                                </CardFooter>
                                             </Card>
                                         ))
                                     )}
@@ -582,66 +677,102 @@ const Admin = () => {
 
             {/* Dialogs */}
             <Dialog open={isNewsDialogOpen} onOpenChange={setIsNewsDialogOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>{editingNews ? 'Edit News' : 'Add News'}</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveNews} className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="news-title">Title</Label>
-                            <Input id="news-title" value={newsForm.title} onChange={e => setNewsForm({ ...newsForm, title: e.target.value })} required />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="news-content">Content</Label>
-                            <Textarea id="news-content" value={newsForm.content} onChange={e => setNewsForm({ ...newsForm, content: e.target.value })} required />
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1">
-                                <Label>Status</Label>
-                                <Select value={newsForm.status} onValueChange={val => setNewsForm({ ...newsForm, status: val })}>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Published">Published</SelectItem>
-                                        <SelectItem value="Draft">Draft</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                <DialogContent className="sm:max-w-xl p-0 overflow-hidden rounded-2xl border-none">
+                    <div className="bg-primary h-1.5 w-full" />
+                    <div className="p-6 space-y-6">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                                {editingNews ? <Pencil className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
+                                {editingNews ? 'Edit News Article' : 'Compose News Article'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Create or update a news post for the app's manual news section.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleSaveNews} className="space-y-6 py-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="news-title" className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Title</Label>
+                                <Input id="news-title" value={newsForm.title} onChange={e => setNewsForm({ ...newsForm, title: e.target.value })} required className="h-12 text-lg border-border/50" placeholder="Breaking: Station upgrade completed..." />
                             </div>
-                            <div className="flex items-center space-x-2 pt-6">
-                                <Checkbox id="pinned" checked={newsForm.pinned} onCheckedChange={val => setNewsForm({ ...newsForm, pinned: !!val })} />
-                                <Label htmlFor="pinned">Pin</Label>
+                            <div className="space-y-2">
+                                <Label htmlFor="news-content" className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Article Body</Label>
+                                <Textarea id="news-content" value={newsForm.content} onChange={e => setNewsForm({ ...newsForm, content: e.target.value })} required className="min-h-[250px] text-base border-border/50 p-4" placeholder="Enter article content here..." />
                             </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit" disabled={isLoading} className="w-full">Save News</Button>
-                        </DialogFooter>
-                    </form>
+                            <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-secondary/30 rounded-xl border border-border/50">
+                                <div className="w-full sm:flex-1 space-y-2">
+                                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Publishing Status</Label>
+                                    <Select value={newsForm.status} onValueChange={val => setNewsForm({ ...newsForm, status: val })}>
+                                        <SelectTrigger className="w-full h-11 bg-background border-border/30">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Published">🚀 Published</SelectItem>
+                                            <SelectItem value="Draft">📝 Draft</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex items-center justify-between w-full sm:w-auto gap-4 pt-4 sm:pt-0">
+                                    <Label htmlFor="pinned" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Sticky Track</Label>
+                                    <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg border border-border/30">
+                                        <Checkbox id="pinned" checked={newsForm.pinned} onCheckedChange={val => setNewsForm({ ...newsForm, pinned: !!val })} className="h-5 w-5 border-primary/50 data-[state=checked]:bg-primary" />
+                                        <Label htmlFor="pinned" className="text-sm font-bold cursor-pointer">Pin to Top</Label>
+                                    </div>
+                                </div>
+                            </div>
+                            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                                <Button type="button" variant="ghost" onClick={() => setIsNewsDialogOpen(false)} className="h-12 flex-1">Discard</Button>
+                                <Button type="submit" disabled={isLoading} className="h-12 flex-1 text-lg font-bold gap-2">
+                                    {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                    {editingNews ? 'Update Article' : 'Publish Now'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </div>
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isHeadlineDialogOpen} onOpenChange={setIsHeadlineDialogOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Edit Headline</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveHeadline} className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="headline-title">Title</Label>
-                            <Input id="headline-title" value={headlineForm.title} onChange={(e) => setHeadlineForm({ ...headlineForm, title: e.target.value })} required />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="headline-summary">Summary</Label>
-                            <Textarea id="headline-summary" value={headlineForm.summary} onChange={(e) => setHeadlineForm({ ...headlineForm, summary: e.target.value })} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="headline-source">Source</Label>
-                            <Input id="headline-source" value={headlineForm.source} onChange={(e) => setHeadlineForm({ ...headlineForm, source: e.target.value })} />
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit" disabled={isSavingHeadline} className="w-full">Save Headline</Button>
-                        </DialogFooter>
-                    </form>
+                <DialogContent className="sm:max-w-xl p-0 overflow-hidden rounded-2xl border-none">
+                    <div className="bg-primary h-1.5 w-full" />
+                    <div className="p-6 space-y-6">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                                <Pencil className="w-6 h-6 text-primary" /> Edit Live Headline
+                            </DialogTitle>
+                            <DialogDescription>
+                                Override the automated ticker content for this specific item.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleSaveHeadline} className="space-y-6 py-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="headline-title" className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Headline Title</Label>
+                                <Input id="headline-title" value={headlineForm.title} onChange={(e) => setHeadlineForm({ ...headlineForm, title: e.target.value })} required className="h-12 text-lg border-border/50" />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="headline-source" className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Attribution</Label>
+                                    <Input id="headline-source" value={headlineForm.source} onChange={(e) => setHeadlineForm({ ...headlineForm, source: e.target.value })} className="h-11 bg-secondary/30 border-border/30" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">ID Reference</Label>
+                                    <div className="h-11 px-3 flex items-center bg-secondary/10 border border-border/20 rounded-md text-[10px] font-mono text-muted-foreground">
+                                        {editingHeadline?.id || 'NO_ID'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="headline-summary" className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Brief Summary</Label>
+                                <Textarea id="headline-summary" value={headlineForm.summary} onChange={(e) => setHeadlineForm({ ...headlineForm, summary: e.target.value })} className="min-h-[120px] border-border/50 text-base" />
+                            </div>
+                            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                                <Button type="button" variant="ghost" onClick={closeEditHeadline} className="h-12 flex-1">Cancel</Button>
+                                <Button type="submit" disabled={isSavingHeadline} className="h-12 flex-1 text-lg font-bold gap-2">
+                                    {isSavingHeadline ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                    Update Feed
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

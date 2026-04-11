@@ -1,7 +1,10 @@
 [
   {
     "id": "scroll-config",
-    "overrideEnabled": true,
+    "override_enabled": false,
+    "override_message": "OFF AIR!<>\nOur team of technicians are yet to finish maintenance work on our broadcasters. However, we are assured that we will be up and running by 9:00am.\nKindly bear with us!",
+    "scroll_type": "news",
+    "overrideEnabled": false,
     "overrideMessage": "OFF AIR!<>\nOur team of technicians are yet to finish maintenance work on our broadcasters. However, we are assured that we will be up and running by 9:00am.\nKindly bear with us!",
     "scrollType": "news"
   }

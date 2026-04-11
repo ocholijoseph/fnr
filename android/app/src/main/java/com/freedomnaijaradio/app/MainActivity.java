@@ -1,4 +1,4 @@
-package com.kingdomfmx.app;
+package com.freedomnaijaradio.app;
 
 import com.getcapacitor.BridgeActivity;
 

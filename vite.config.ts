@@ -10,7 +10,18 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
-const supabaseServer = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Enhanced Supabase client for server-side with better retry and connection handling
+const supabaseServer = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        persistSession: false, // Server side doesn't need to persist session in storage
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+    },
+    global: {
+        headers: { 'x-application-name': 'fnr-vite' },
+    },
+}) : null;
 
 async function readLocalJson<T>(filePath: string, fallback: T): Promise<T> {
     const fs = await import('fs/promises');
@@ -27,24 +38,47 @@ async function writeLocalJson(filePath: string, value: any): Promise<void> {
     await fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8');
 }
 
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
+    let lastError: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxRetries) {
+                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+            }
+        }
+    }
+    throw lastError;
+}
+
 async function readTable<T>(table: string, filePath: string, fallback: T[]): Promise<T[]> {
     if (supabaseServer) {
-        const { data, error } = await supabaseServer.from<T>(table).select('*');
-        if (!error && data) {
-            return data;
+        try {
+            const { data, error } = await withRetry(() => supabaseServer.from<T>(table).select('*'));
+            if (!error && data && data.length > 0) {
+                return data;
+            }
+            console.warn(`[Supabase] read ${table} fallback:`, error?.message);
+        } catch (e: any) {
+            console.error(`[Supabase] read ${table} exception:`, e.message || e);
         }
-        console.warn(`[Supabase] read ${table} fallback:`, error?.message);
     }
     return readLocalJson<T[]>(filePath, fallback);
 }
 
 async function saveTableRows<T>(table: string, filePath: string, rows: T[]): Promise<T[]> {
     if (supabaseServer) {
-        const { data, error } = await supabaseServer.from<T>(table).upsert(rows, { onConflict: 'id' });
-        if (!error && data) {
-            return data;
+        try {
+            const { data, error } = await withRetry(() => supabaseServer.from<T>(table).upsert(rows, { onConflict: 'id' }).select());
+            if (!error && data) {
+                return data;
+            }
+            console.warn(`[Supabase] upsert ${table} fallback:`, error?.message);
+        } catch (e: any) {
+            console.error(`[Supabase] upsert ${table} exception:`, e.message || e);
         }
-        console.warn(`[Supabase] upsert ${table} fallback:`, error?.message);
     }
     await writeLocalJson(filePath, rows);
     return rows;
@@ -52,9 +86,13 @@ async function saveTableRows<T>(table: string, filePath: string, rows: T[]): Pro
 
 async function deleteRowFromStorage(table: string, filePath: string, id: string): Promise<boolean> {
     if (supabaseServer) {
-        const { error } = await supabaseServer.from(table).delete().eq('id', id);
-        if (!error) return true;
-        console.warn(`[Supabase] delete ${table} id=${id} fallback:`, error?.message);
+        try {
+            const { error } = await withRetry(() => supabaseServer.from(table).delete().eq('id', id));
+            if (!error) return true;
+            console.warn(`[Supabase] delete ${table} id=${id} fallback:`, error?.message);
+        } catch (e: any) {
+            console.error(`[Supabase] delete ${table} exception:`, e.message || e);
+        }
     }
     const rows = await readLocalJson<any[]>(filePath, []);
     const filtered = rows.filter(item => item.id !== id);
@@ -65,11 +103,27 @@ async function deleteRowFromStorage(table: string, filePath: string, id: string)
 
 async function upsertRowInStorage<T extends { id: string }>(table: string, filePath: string, row: T): Promise<T | null> {
     if (supabaseServer) {
-        const { data, error } = await supabaseServer.from<T>(table).upsert([row], { onConflict: 'id', returning: 'representation' });
-        if (!error && data && data.length > 0) {
-            return data[0];
+        try {
+            // WHITELIST: Only send columns that exist in Supabase schema
+            let dataToUpsert: any = { ...row };
+            if (table === 'scroll') {
+                dataToUpsert = {
+                    id: 'scroll-config',
+                    override_enabled: (row as any).override_enabled ?? (row as any).overrideEnabled ?? false,
+                    override_message: (row as any).override_message ?? (row as any).overrideMessage ?? '',
+                    scroll_type: (row as any).scroll_type ?? (row as any).scrollType ?? 'information'
+                };
+            }
+
+            const { data, error } = await withRetry(() => supabaseServer.from(table).upsert([dataToUpsert], { onConflict: 'id' }).select());
+            if (!error && data && data.length > 0) {
+                // Return original row to maintain local consistency
+            } else if (error) {
+                console.warn(`[Supabase] upsert row ${table} error:`, error.message);
+            }
+        } catch (e: any) {
+            console.error(`[Supabase] upsert row ${table} exception:`, e.message || e);
         }
-        console.warn(`[Supabase] upsert row ${table} fallback:`, error?.message);
     }
     const rows = await readLocalJson<T[]>(filePath, []);
     const nextRows = rows.some(item => item.id === row.id) ? rows.map(item => item.id === row.id ? row : item) : [...rows, row];
@@ -93,7 +147,7 @@ async function syncHeadlinesToSupabase(headlines: NormalizedHeadline[]): Promise
             fetched_at: h.fetchedAt
         }));
 
-        const result = await supabaseServer.from('news_headlines').upsert(transformedHeadlines, { onConflict: 'id' });
+        const result = await withRetry(() => supabaseServer.from('news_headlines').upsert(transformedHeadlines, { onConflict: 'id' }));
         if (result.error) {
             console.error('[Supabase] sync headlines failed:', result.error.message);
         }
@@ -400,7 +454,8 @@ export default defineConfig(({ mode }) => {
     return {
         server: {
             host: "::",
-            port: 1500,
+            port: 1080,
+            strictPort: true, // Ensure it doesn't fallback to another port
         },
         plugins: [
             react(),
@@ -514,7 +569,12 @@ export default defineConfig(({ mode }) => {
                                 const authHeader = req.headers['authorization'] || req.headers['x-admin-password'] || '';
                                 let provided = authHeader.trim();
                                 if (provided.startsWith('Bearer ')) provided = provided.substring(7).trim();
-                                return provided === adminPassword;
+                                
+                                if (provided !== adminPassword) {
+                                    console.warn(`[Auth] Unauthorized ${req.method} request to ${url}.`);
+                                    return false;
+                                }
+                                return true;
                             };
 
                             if (req.method === 'OPTIONS') {
@@ -835,7 +895,16 @@ export default defineConfig(({ mode }) => {
                                     try {
                                         const scrollData = JSON.parse(body);
                                         const scrollPath = path.resolve(__dirname, 'scroll.json');
-                                        await upsertRowInStorage('scroll', scrollPath, { id: 'scroll-config', ...scrollData });
+                                        const mapped = {
+                                            id: 'scroll-config',
+                                            override_enabled: scrollData.override_enabled ?? scrollData.overrideEnabled ?? false,
+                                            override_message: scrollData.override_message ?? scrollData.overrideMessage ?? '',
+                                            scroll_type: scrollData.scroll_type ?? scrollData.scrollType ?? 'information',
+                                            overrideEnabled: scrollData.override_enabled ?? scrollData.overrideEnabled ?? false,
+                                            overrideMessage: scrollData.override_message ?? scrollData.overrideMessage ?? '',
+                                            scrollType: scrollData.scroll_type ?? scrollData.scrollType ?? 'information'
+                                        };
+                                        await upsertRowInStorage('scroll', scrollPath, mapped);
                                         res.setHeader('Content-Type', 'application/json');
                                         res.end(JSON.stringify({ success: true }));
                                     } catch (error: any) {

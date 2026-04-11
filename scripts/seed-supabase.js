@@ -159,8 +159,8 @@ async function seed() {
 
   const scroll = await readJsonFile('scroll.json');
   if (scroll) {
-    const row = { id: 'scroll-config', ...scroll };
-    const success = await upsertRow('scroll', row);
+    const rows = Array.isArray(scroll) ? scroll : [scroll];
+    const success = await upsertRows('scroll', rows);
     if (success) {
       console.log('Seeded scroll config into scroll');
     }

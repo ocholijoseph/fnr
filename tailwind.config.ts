@@ -94,6 +94,10 @@ export default {
                     "0%": { transform: "translateX(100%)" },
                     "100%": { transform: "translateX(-100%)" },
                 },
+                "marquee-seamless": {
+                    "0%": { transform: "translateX(0)" },
+                    "100%": { transform: "translateX(-50%)" },
+                },
                 "radio-wave": {
                     "0%, 100%": {
                         transform: "scale(1)",
@@ -110,6 +114,7 @@ export default {
                 "accordion-up": "accordion-up 0.3s ease-out",
                 "pulse-glow": "pulse-glow 2s ease-in-out infinite",
                 "marquee": "marquee 15s linear infinite",
+                "marquee-seamless": "marquee-seamless 40s linear infinite",
                 "radio-wave": "radio-wave 3s ease-in-out infinite",
             },
         },

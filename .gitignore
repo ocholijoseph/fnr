@@ -33,3 +33,13 @@ android/app/release/
 android/.gradle/
 android/build/
 android/app/build/
+
+# Environment and Cache
+.env
+headlines_cache.json
+scroll.json
+news.json
+socials.json
+prayer_requests.json
+testimonies.json
+donations.json

@@ -19,7 +19,18 @@ const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
-const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+// Enhanced Supabase client for backend with auto-refresh and retry
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+    },
+    global: {
+        headers: { 'x-application-name': 'fnr-api-server' },
+    },
+}) : null;
 
 const PROVIDERS = ['newsapi', 'newsdata', 'gnews'];
 
@@ -83,49 +94,84 @@ async function writeJsonFile(filePath, data) {
     await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+async function withRetry(fn, maxRetries = 2) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxRetries) {
+                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+            }
+        }
+    }
+    throw lastError;
+}
+
 async function supabaseSelect(table, select = '*') {
     if (!supabase) return null;
-    const { data, error } = await supabase.from(table).select(select);
-    if (error) {
-        console.warn(`[Supabase] select ${table} failed:`, error.message);
+    try {
+        const { data, error } = await withRetry(() => supabase.from(table).select(select));
+        if (error) {
+            console.warn(`[Supabase] select ${table} failed:`, error.message);
+            return null;
+        }
+        return data;
+    } catch (error) {
+        console.error(`[Supabase] select ${table} exception:`, error.message || error);
         return null;
     }
-    return data;
 }
 
 async function supabaseUpsert(table, rows) {
     if (!supabase) return null;
-    const { data, error } = await supabase.from(table).upsert(rows, { onConflict: 'id' });
-    if (error) {
-        console.warn(`[Supabase] upsert ${table} failed:`, error.message);
+    try {
+        const { data, error } = await withRetry(() => supabase.from(table).upsert(rows, { onConflict: 'id' }).select());
+        if (error) {
+            console.warn(`[Supabase] upsert ${table} failed:`, error.message);
+            return null;
+        }
+        return data;
+    } catch (error) {
+        console.error(`[Supabase] upsert ${table} exception:`, error.message || error);
         return null;
     }
-    return data;
 }
 
 async function supabaseInsert(table, row) {
     if (!supabase) return null;
-    const { data, error } = await supabase.from(table).insert([row]);
-    if (error) {
-        console.warn(`[Supabase] insert ${table} failed:`, error.message);
+    try {
+        const { data, error } = await withRetry(() => supabase.from(table).insert([row]).select());
+        if (error) {
+            console.warn(`[Supabase] insert ${table} failed:`, error.message);
+            return null;
+        }
+        return data;
+    } catch (error) {
+        console.error(`[Supabase] insert ${table} exception:`, error.message || error);
         return null;
     }
-    return data;
 }
 
 async function supabaseDelete(table, id) {
     if (!supabase) return false;
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) {
-        console.warn(`[Supabase] delete ${table} id=${id} failed:`, error.message);
+    try {
+        const { error } = await withRetry(() => supabase.from(table).delete().eq('id', id));
+        if (error) {
+            console.warn(`[Supabase] delete ${table} id=${id} failed:`, error.message);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error(`[Supabase] delete ${table} id=${id} exception:`, error.message || error);
         return false;
     }
-    return true;
 }
 
 async function readStorage(table, filePath, fallback) {
     const supabaseData = await supabaseSelect(table);
-    if (supabaseData !== null) {
+    if (supabaseData !== null && supabaseData.length > 0) {
         return supabaseData;
     }
     return await readJsonFile(filePath, fallback);
@@ -163,10 +209,20 @@ async function deleteStorage(table, filePath, id) {
 }
 
 async function upsertStorage(table, filePath, row) {
-    const supabaseData = await supabaseUpsert(table, [row]);
-    if (supabaseData !== null && supabaseData.length > 0) {
-        return supabaseData[0];
+    let dataToUpsert = row;
+    if (table === 'scroll') {
+        dataToUpsert = {
+            id: 'scroll-config',
+            override_enabled: row.override_enabled ?? row.overrideEnabled ?? false,
+            override_message: row.override_message ?? row.overrideMessage ?? '',
+            scroll_type: row.scroll_type ?? row.scrollType ?? 'information'
+        };
     }
+
+    const supabaseData = await supabaseUpsert(table, [dataToUpsert]);
+    // Note: We ignore the return value of supabaseUpsert for returning to frontend
+    // to ensure we always include our internal camelCase keys if they were provided.
+    
     const existing = await readJsonFile(filePath, []);
     const updated = existing.some(item => item.id === row.id)
         ? existing.map(item => item.id === row.id ? row : item)
@@ -487,7 +543,17 @@ const server = http.createServer(async (req, res) => {
             req.on('end', async () => {
                 try {
                     const scrollData = JSON.parse(body);
-                    const updated = await upsertStorage('scroll', SCROLL_FILE, { id: 'scroll-config', ...scrollData });
+                    // Map to both snake_case (for Supabase) and camelCase (for local/legacy)
+                    const mappedData = {
+                        id: 'scroll-config',
+                        override_enabled: scrollData.override_enabled ?? scrollData.overrideEnabled ?? false,
+                        override_message: scrollData.override_message ?? scrollData.overrideMessage ?? '',
+                        scroll_type: scrollData.scroll_type ?? scrollData.scrollType ?? 'information',
+                        overrideEnabled: scrollData.override_enabled ?? scrollData.overrideEnabled ?? false,
+                        overrideMessage: scrollData.override_message ?? scrollData.overrideMessage ?? '',
+                        scrollType: scrollData.scroll_type ?? scrollData.scrollType ?? 'information'
+                    };
+                    const updated = await upsertStorage('scroll', SCROLL_FILE, mappedData);
                     res.setHeader('Content-Type', 'application/json');
                     res.end(JSON.stringify({ success: true, updated }));
                 } catch (error) {
@@ -687,11 +753,47 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    if (url && url.startsWith('/api/news-headlines/') && req.method === 'DELETE') {
+    if (url && url.startsWith('/api/news-headlines/') && (req.method === 'DELETE' || req.method === 'PUT')) {
         const id = decodeURIComponent(url.replace('/api/news-headlines/', ''));
-        await deleteStorage('news_headlines', HEADLINES_CACHE_FILE, id);
-        res.end(JSON.stringify({ success: true }));
-        return;
+        
+        if (req.method === 'DELETE') {
+            await deleteStorage('news_headlines', HEADLINES_CACHE_FILE, id);
+            res.end(JSON.stringify({ success: true }));
+            return;
+        }
+        
+        if (req.method === 'PUT') {
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', async () => {
+                try {
+                    const bd = JSON.parse(body);
+                    const cache = await loadHeadlinesCache();
+                    const index = cache.headlines.findIndex(h => h.id === id);
+                    
+                    if (index === -1) {
+                        res.statusCode = 404;
+                        res.end(JSON.stringify({ error: 'Headline not found' }));
+                        return;
+                    }
+                    
+                    const updatedHeadline = { ...cache.headlines[index], ...bd, updatedAt: new Date().toISOString() };
+                    cache.headlines[index] = updatedHeadline;
+                    
+                    // Update scroll lines too
+                    cache.scrollLines = buildScrollLines(cache.headlines);
+                    
+                    await saveHeadlinesCache(cache);
+                    await syncHeadlines([updatedHeadline]);
+                    
+                    res.end(JSON.stringify(updatedHeadline));
+                } catch (error) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'Failed' }));
+                }
+            });
+            return;
+        }
     }
 
     if (url === '/api/news-headlines/status' && req.method === 'GET') {

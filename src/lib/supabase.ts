@@ -9,12 +9,37 @@ let supabase: ReturnType<typeof createClient> | null = null;
 if (SUPABASE_URL && SUPABASE_ANON_KEY) {
   try {
     supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage
+      },
       realtime: {
         params: {
-          eventsPerSecond: 10,
+          eventsPerSecond: 20,
         },
       },
+      global: {
+        headers: { 'x-application-name': 'fnr-frontend' },
+      },
     });
+    
+    // Explicitly handle reconnection events
+    supabase.channel('system-status')
+      .on('system', { event: '*' }, (payload) => {
+        console.log('Supabase system event:', payload);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully connected to Supabase Realtime');
+        } else if (status === 'CLOSED') {
+          console.warn('Supabase Realtime connection closed, attempting to reconnect...');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Supabase Realtime channel error');
+        }
+      });
+
   } catch (error) {
     console.error('Failed to initialize Supabase client:', error);
     supabase = null;
@@ -104,10 +129,16 @@ export async function subscribeToTable<T = any>(
         callback({ eventType: payload.eventType, new: payload.new as T, old: payload.old as T });
       });
 
-    await channel.subscribe();
+    await new Promise((resolve, reject) => {
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') resolve(null);
+        if (status === 'CHANNEL_ERROR') reject(new Error('Subscription failed'));
+        if (status === 'TIMED_OUT') reject(new Error('Subscription timeout'));
+      });
+    });
 
     return async () => {
-      await supabase.removeChannel(channel);
+      await supabase?.removeChannel(channel);
     };
   } catch (error) {
     console.error(`Supabase subscription error on ${table}:`, error);

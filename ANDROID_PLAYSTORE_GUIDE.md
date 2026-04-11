@@ -1,7 +1,7 @@
 # 🚀 Freedom Naija Radio — Android Play Store Deployment Guide
 
 ## App Details
-- **App ID (Package Name):** `com.fnradio.app`
+- **App ID (Package Name):** `com.freedomnaijaradio.app`
 - **App Name:** Freedom Naija Radio
 - **Framework:** Capacitor 6 + Vite + React + TypeScript
 
@@ -139,7 +139,7 @@ Open `android/app/build.gradle` and update:
 ```groovy
 android {
     defaultConfig {
-        applicationId "com.kingdomfmx.app"
+        applicationId "com.freedomnaijaradio.app"
         minSdkVersion 22
         targetSdkVersion 34
         versionCode 1          // Increment this with each Play Store release

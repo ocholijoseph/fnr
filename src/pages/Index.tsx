@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { RadioPlayer } from "@/components/RadioPlayer";
 import { Footer } from "@/components/Footer";
+import { NewsAccordion } from "@/components/NewsAccordion";
+import NewsTicker from "@/components/NewsTicker";
 import { isSupabaseEnabled, subscribeToTable } from "@/lib/supabase";
+import { Newspaper, ChevronDown } from "lucide-react";
 
 interface TrackInfo {
     title: string;
@@ -220,7 +223,13 @@ const Index = () => {
         try {
             const response = await fetch('/api/scroll');
             if (response.ok) {
-                const data = await response.json();
+                const rawData = await response.json();
+                const config = Array.isArray(rawData) ? rawData[0] : rawData;
+                const data = {
+                    overrideEnabled: config.override_enabled ?? config.overrideEnabled ?? false,
+                    overrideMessage: config.override_message ?? config.overrideMessage ?? "",
+                    scrollType: config.scroll_type ?? config.scrollType ?? "information"
+                };
                 setScrollConfig(data);
 
                 // Always fetch news headlines if scroll type is news
@@ -255,18 +264,24 @@ const Index = () => {
                     }
 
                     if (allTitles.length > 0) {
-                        setNewsMessage("📰 NEWS UPDATE 📰  " + allTitles.join("  🔸  ") + "  🔄  ");
+                        const message = "📰 NEWS UPDATE 📰  " + allTitles.join("  🔸  ") + "  🔄  ";
+                        console.log("[Index] News message updated:", message.substring(0, 50) + "...");
+                        setNewsMessage(message);
                     } else {
-                        setNewsMessage("📰 Stay tuned for latest updates! 📰");
+                        setNewsMessage("📰 NEWS UPDATE: No recent headlines found. Stay tuned! 📰");
                     }
                 } else {
                     setNewsMessage("");
                 }
             }
         } catch (error) {
-            console.error("Error fetching scroll config:", error);
+            console.error("[Index] Error fetching scroll config:", error);
         }
     }, []);
+
+    useEffect(() => {
+        // Scroll config is logged in fetchScrollConfig if needed
+    }, [scrollConfig]);
 
     useEffect(() => {
         const fetchDataAndSchedule = () => {
@@ -314,23 +329,60 @@ const Index = () => {
         };
     }, [fetchScrollConfig]);
 
+    const scrollToNews = () => {
+        const newsSection = document.getElementById('news-section');
+        if (newsSection) {
+            newsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
     return (
-        <div className="h-full w-full bg-background flex flex-col py-4 px-4">
-            <RadioPlayer
-                station={station}
-                currentTrack={currentTrack}
-                currentTrackId={currentTrackId}
-                history={history}
-                listenerCount={listenerCount}
-                bitrate={bitrate}
-                overrideMessage={
+        <div className="min-h-screen w-full bg-[#0a0a0c] text-white flex flex-col font-sans selection:bg-primary/30">
+            {/* News Ticker Bar */}
+            <NewsTicker 
+                message={
                     (scrollConfig.overrideEnabled && scrollConfig.overrideMessage.trim())
                         ? scrollConfig.overrideMessage
-                        : (scrollConfig.scrollType === "news" ? (newsMessage || "📰 Loading latest news updates... 📰") : undefined)
+                        : (scrollConfig.scrollType === "news" ? newsMessage : "")
                 }
-                scrollType={scrollConfig.scrollType}
-                onClearHistory={clearHistory}
+                visible={scrollConfig.overrideEnabled || scrollConfig.scrollType === "news"}
             />
+
+            {/* Main Player Section */}
+            <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-700">
+                <RadioPlayer
+                    station={station}
+                    currentTrack={currentTrack}
+                    currentTrackId={currentTrackId}
+                    history={history}
+                    listenerCount={listenerCount}
+                    bitrate={bitrate}
+                    overrideMessage={
+                        (scrollConfig.overrideEnabled && scrollConfig.overrideMessage.trim())
+                            ? scrollConfig.overrideMessage
+                            : (scrollConfig.scrollType === "news" ? (newsMessage || "📰 Loading latest news updates... 📰") : undefined)
+                    }
+                    scrollType={scrollConfig.scrollType}
+                    onClearHistory={clearHistory}
+                />
+                
+                {/* Scroll Indicator */}
+                <button 
+                    onClick={scrollToNews}
+                    className="mt-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-primary transition-colors group animate-bounce"
+                >
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Explore News</span>
+                    <ChevronDown className="w-4 h-4" />
+                </button>
+            </main>
+
+            {/* News & Information Hub */}
+            <section id="news-section" className="w-full bg-black/40 backdrop-blur-xl border-t border-white/5 py-12 px-4 shadow-2xl">
+                <div className="max-w-7xl mx-auto">
+                    <NewsAccordion />
+                </div>
+            </section>
+
             <Footer />
         </div>
     );
