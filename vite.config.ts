@@ -5,8 +5,8 @@ import { componentTagger } from "lovable-tagger";
 import dotenv from "dotenv";
 import { createClient } from '@supabase/supabase-js';
 
-// Load .env file for server-side API keys
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+// Load .env file for server-side API keys with override to pick up changes
+dotenv.config({ path: path.resolve(__dirname, '.env'), override: true });
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
@@ -221,12 +221,23 @@ async function fetchWithRetry(url: string, opts: any = {}, maxRetries = 2): Prom
     let lastError: any;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            const response = await fetch(url, { ...opts, signal: AbortSignal.timeout(10000) });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const response = await fetch(url, {
+                ...opts,
+                headers: {
+                    'User-Agent': 'FreedomNaijaRadio/1.0 (NewsAggregator; +http://freedomnaijaradio.com)',
+                    'Accept': 'application/json',
+                    ...opts.headers
+                },
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
             return response;
         } catch (error: any) {
             lastError = error;
             if (attempt < maxRetries) {
-                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+                await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
             }
         }
     }
@@ -292,7 +303,11 @@ async function fetchNewsAPI(apiKey: string): Promise<NormalizedHeadline[]> {
     for (const url of endpoints) {
         try {
             const res = await fetchWithRetry(url);
-            if (!res.ok) continue;
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                console.error(`[NewsAggregator] NewsAPI error (${res.status}):`, errorData.message || res.statusText);
+                continue;
+            }
             const data: any = await res.json();
             if (!data.articles) continue;
             for (const a of data.articles) {
@@ -336,7 +351,11 @@ async function fetchNewsData(apiKey: string): Promise<NormalizedHeadline[]> {
     for (const url of endpoints) {
         try {
             const res = await fetchWithRetry(url);
-            if (!res.ok) continue;
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                console.error(`[NewsAggregator] NewsData error (${res.status}):`, errorData.message || res.statusText);
+                continue;
+            }
             const data: any = await res.json();
             if (!data.results) continue;
             for (const a of data.results) {
@@ -380,7 +399,11 @@ async function fetchGNews(apiKey: string): Promise<NormalizedHeadline[]> {
     for (const url of endpoints) {
         try {
             const res = await fetchWithRetry(url);
-            if (!res.ok) continue;
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                console.error(`[NewsAggregator] GNews error (${res.status}):`, errorData.message || res.statusText);
+                continue;
+            }
             const data: any = await res.json();
             if (!data.articles) continue;
             for (const a of data.articles) {
@@ -493,29 +516,41 @@ export default defineConfig(({ mode }) => {
                             : (cache.providerIndex + 1) % PROVIDERS.length;
                         const provider = requestedProvider || PROVIDERS[nextIndex >= 0 ? nextIndex : 0];
 
-                        const NEWSAPI_KEY = process.env.NEWSAPI_KEY || env.NEWSAPI_KEY || '';
-                        const NEWSDATA_KEY = process.env.NEWSDATA_API_KEY || env.NEWSDATA_API_KEY || '';
-                        const GNEWS_KEY = process.env.GNEWS_API_KEY || env.GNEWS_API_KEY || '';
-
                         let newHeadlines: NormalizedHeadline[] = [];
                         let fetchError = '';
 
                         try {
-                            switch (provider) {
-                                case 'newsapi':
-                                    if (!NEWSAPI_KEY) throw new Error('NEWSAPI_KEY not set in .env');
-                                    newHeadlines = await fetchNewsAPI(NEWSAPI_KEY);
-                                    break;
-                                case 'newsdata':
-                                    if (!NEWSDATA_KEY) throw new Error('NEWSDATA_API_KEY not set in .env');
-                                    newHeadlines = await fetchNewsData(NEWSDATA_KEY);
-                                    break;
-                                case 'gnews':
-                                    if (!GNEWS_KEY) throw new Error('GNEWS_API_KEY not set in .env');
-                                    newHeadlines = await fetchGNews(GNEWS_KEY);
-                                    break;
+                            console.log(`[NewsAggregator] 🌍 Fetching from ${provider}...`);
+                            
+                            // Ensure env is fresh by reloading .env file
+                            dotenv.config({ path: path.resolve(__dirname, '.env'), override: true });
+                            
+                            const NEWSAPI_KEY = process.env.NEWSAPI_KEY || '';
+                            const NEWSDATA_KEY = process.env.NEWSDATA_API_KEY || '';
+                            const GNEWS_KEY = process.env.GNEWS_API_KEY || '';
+
+                            if (provider === 'newsapi') {
+                                if (!NEWSAPI_KEY) throw new Error('NEWSAPI_KEY not found in process.env');
+                                newHeadlines = await fetchNewsAPI(NEWSAPI_KEY);
+                            } else if (provider === 'newsdata') {
+                                if (!NEWSDATA_KEY) throw new Error('NEWSDATA_API_KEY not found in process.env');
+                                newHeadlines = await fetchNewsData(NEWSDATA_KEY);
+                            } else if (provider === 'gnews') {
+                                if (!GNEWS_KEY) throw new Error('GNEWS_API_KEY not found in process.env');
+                                newHeadlines = await fetchGNews(GNEWS_KEY);
                             }
-                            console.log(`[NewsAggregator] ✓ Fetched ${newHeadlines.length} headlines from ${provider}`);
+                            
+                            console.log(`[NewsAggregator] ✅ Successfully fetched ${newHeadlines.length} headlines from ${provider}`);
+                            
+                            // Filter against local blacklist of deleted/hidden headlines
+                            const blacklistPath = path.join(__dirname, 'deleted_urls.json');
+                            const blacklist = await readLocalJson<string[]>(blacklistPath, []);
+                            if (blacklist.length > 0) {
+                                newHeadlines = newHeadlines.filter(h => 
+                                    !(h.url && blacklist.includes(h.url)) && 
+                                    !blacklist.some(b => b === h.title)
+                                );
+                            }
                         } catch (e: any) {
                             fetchError = e.message || 'Unknown error';
                             console.error(`[NewsAggregator] ✗ ${provider} error:`, fetchError);
@@ -554,9 +589,9 @@ export default defineConfig(({ mode }) => {
 
                     // Start background rotation timer (60 minutes - much more conservative)
                     if (aggregatorInterval) clearInterval(aggregatorInterval);
-                    console.log('[NewsAggregator] 🚀 Starting background aggregator (60-min rotation: NewsAPI → NewsData → GNews)');
+                    console.log('[NewsAggregator] 🚀 Starting background aggregator (10-min rotation: NewsAPI → NewsData → GNews)');
                     setTimeout(() => runFetchCycle().catch(console.error), 5000);
-                    aggregatorInterval = setInterval(() => runFetchCycle().catch(console.error), 60 * 60 * 1000);
+                    aggregatorInterval = setInterval(() => runFetchCycle().catch(console.error), 10 * 60 * 1000);
 
                     // ── Middleware ──
                     server.middlewares.use(async (req: any, res: any, next: any) => {
@@ -668,7 +703,7 @@ export default defineConfig(({ mode }) => {
 
                             // ── /api/news-headlines/:id ── DELETE headline
                             {
-                                const match = url.match(/^\/api\/news-headlines\/([^\/]+)$/);
+                                const match = url.match(/^\/api\/news-headlines\/([^/]+)$/);
                                 if (match && req.method === 'DELETE') {
                                     const id = decodeURIComponent(match[1]);
                                     const cache = await loadCache();
@@ -682,6 +717,15 @@ export default defineConfig(({ mode }) => {
                                             if (!deleteError) deletedInSupabase = true;
                                             else console.error('[Supabase] delete headline error:', deleteError);
                                         }
+                                    }
+
+                                    const deletedHeadline = cache.headlines.find(h => h.id === id);
+                                    if (deletedHeadline) {
+                                        const blacklistPath = path.join(__dirname, 'deleted_urls.json');
+                                        const blacklist = await readLocalJson<string[]>(blacklistPath, []);
+                                        if (deletedHeadline.url && !blacklist.includes(deletedHeadline.url)) blacklist.push(deletedHeadline.url);
+                                        if (deletedHeadline.title && !blacklist.includes(deletedHeadline.title)) blacklist.push(deletedHeadline.title);
+                                        await writeLocalJson(blacklistPath, blacklist);
                                     }
 
                                     const nextHeadlines = cache.headlines.filter(h => h.id !== id);
@@ -710,7 +754,7 @@ export default defineConfig(({ mode }) => {
 
                             // ── /api/news-headlines/:id ── PUT headline edit
                             {
-                                const match = url.match(/^\/api\/news-headlines\/([^\/]+)$/);
+                                const match = url.match(/^\/api\/news-headlines\/([^/]+)$/);
                                 if (match && req.method === 'PUT') {
                                     let body = '';
                                     req.on('data', (chunk: any) => { body += chunk.toString(); });

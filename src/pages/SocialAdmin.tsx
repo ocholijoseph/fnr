@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,11 +32,11 @@ const SocialAdmin = () => {
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
 
-    const getAuthHeader = () => ({
+    const getAuthHeader = useCallback(() => ({
         'Authorization': `Bearer ${sessionStorage.getItem("admin_password") || ""}`
-    });
+    }), []);
 
-    const fetchSocials = async () => {
+    const fetchSocials = useCallback(async () => {
         if (!isAuthenticated) return;
         setIsLoading(true);
         try {
@@ -54,13 +54,13 @@ const SocialAdmin = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isAuthenticated, getAuthHeader]);
 
     useEffect(() => {
         if (isAuthenticated) {
             fetchSocials();
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, fetchSocials]);
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();

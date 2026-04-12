@@ -5,17 +5,17 @@ import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const PORT = process.env.PORT || process.argv[2] || 3300;
 const HEADLINES_CACHE_FILE = path.join(__dirname, 'headlines_cache.json');
 const SCROLL_FILE = path.join(__dirname, 'scroll.json');
 const NEWS_FILE_PATH = path.join(__dirname, 'news.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'kfmx-admin-2024';
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
@@ -235,7 +235,15 @@ async function fetchWithRetry(url, opts = {}, maxRetries = 2) {
     let lastError;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            const response = await fetch(url, { ...opts, signal: AbortSignal.timeout(10000) });
+            const response = await fetch(url, { 
+                ...opts, 
+                headers: {
+                    'User-Agent': 'FreedomNaijaRadio/1.0 (NewsAggregator; +http://freedomnaijaradio.com)',
+                    'Accept': 'application/json',
+                    ...opts.headers
+                },
+                signal: AbortSignal.timeout(10000) 
+            });
             return response;
         } catch (error) {
             lastError = error;
@@ -256,12 +264,38 @@ const cleanupOldNews = async () => {
         const filtered = allNews.filter(item => {
             if (item.pinned) return true;
             const createdAt = new Date(item.createdAt).getTime();
-            return (now - createdAt) < THREE_DAYS_MS;
+            return (now - createdAt) < TWO_DAYS_MS;
         });
 
         if (allNews.length !== filtered.length) {
             await fs.writeFile(NEWS_FILE_PATH, JSON.stringify(filtered, null, 2), 'utf-8');
-            console.log(`[NEWS CLEANUP] Removed ${allNews.length - filtered.length} old items.`);
+            console.log(`[NEWS CLEANUP] Removed ${allNews.length - filtered.length} old items locally.`);
+        }
+
+        // Add Supabase database cleanup
+        if (supabase) {
+            const twoDaysAgo = new Date(Date.now() - TWO_DAYS_MS).toISOString();
+            const { error: deleteError, count } = await supabase
+                .from('news')
+                .delete({ count: 'exact' })
+                .lt('created_at', twoDaysAgo)
+                .eq('pinned', false);
+            
+            if (!deleteError) {
+                console.log(`[NEWS CLEANUP] Removed old items from Supabase 'news' table.`);
+            } else {
+                console.error(`[NEWS CLEANUP] Supabase 'news' cleanup error:`, deleteError);
+            }
+
+            // Also clean up aggregated headlines from news_headlines table
+            const { error: headlinesError } = await supabase
+                .from('news_headlines')
+                .delete()
+                .lt('fetched_at', twoDaysAgo);
+
+            if (!headlinesError) {
+                console.log(`[NEWS CLEANUP] Removed old items from Supabase 'news_headlines' table.`);
+            }
         }
     } catch (e) {
         if (e.code !== 'ENOENT') console.error('[NEWS CLEANUP] Error:', e);
@@ -824,25 +858,52 @@ server.listen(PORT, () => {
 const fetchDailyNews = async () => {
     try {
         const newsApiKey = process.env.NEWSAPI_KEY || '';
+        const newsDataKey = process.env.NEWSDATA_API_KEY || '';
+        const gnewsKey = process.env.GNEWS_API_KEY || '';
+        
+        let articles = [];
+        
         if (newsApiKey) {
-            console.log(`[NEWS] Fetching...`);
-            let response = await fetch(`https://newsapi.org/v2/top-headlines?country=ng&pageSize=10&apiKey=${newsApiKey}`);
-            let json = await response.json();
-            if (json.status === 'ok' && json.articles) {
-                const existing = await readStorage('news', NEWS_FILE_PATH, []);
-                const newItems = json.articles
-                    .filter(a => !existing.some(item => item.title === a.title))
-                    .map(a => ({
-                        id: Date.now().toString() + Math.random().toString().slice(2, 8),
-                        title: a.title,
-                        content: a.url || a.description || '',
-                        status: 'Published',
-                        pinned: false,
-                        createdAt: new Date().toISOString()
-                    }));
-                if (newItems.length > 0) {
-                    await saveStorage('news', NEWS_FILE_PATH, [...newItems, ...existing]);
+            console.log(`[NEWS] Fetching from NewsAPI...`);
+            try {
+                const response = await fetchWithRetry(`https://newsapi.org/v2/top-headlines?country=ng&pageSize=10&apiKey=${newsApiKey}`);
+                const json = await response.json();
+                if (json.status === 'ok' && json.articles) {
+                    articles = json.articles;
                 }
+            } catch (e) {
+                console.warn('[NEWS] NewsAPI failed, trying fallbacks...');
+            }
+        }
+        
+        if (articles.length === 0 && newsDataKey) {
+            console.log(`[NEWS] Fetching from NewsData...`);
+            try {
+                const response = await fetchWithRetry(`https://newsdata.io/api/1/news?country=ng&language=en&size=10&apikey=${newsDataKey}`);
+                const json = await response.json();
+                if (json.results) {
+                    articles = json.results.map(r => ({ ...r, url: r.link }));
+                }
+            } catch (e) {
+                console.warn('[NEWS] NewsData failed.');
+            }
+        }
+
+        if (articles.length > 0) {
+            const existing = await readStorage('news', NEWS_FILE_PATH, []);
+            const newItems = articles
+                .filter(a => a.title && !existing.some(item => item.title === a.title))
+                .map(a => ({
+                    id: Date.now().toString() + Math.random().toString().slice(2, 8),
+                    title: a.title,
+                    content: a.url || a.description || '',
+                    status: 'Published',
+                    pinned: false,
+                    createdAt: new Date().toISOString()
+                }));
+            if (newItems.length > 0) {
+                await saveStorage('news', NEWS_FILE_PATH, [...newItems, ...existing]);
+                console.log(`[NEWS] Added ${newItems.length} new items.`);
             }
         }
         await cleanupOldNews();

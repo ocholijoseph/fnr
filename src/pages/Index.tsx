@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { RadioPlayer } from "@/components/RadioPlayer";
 import { Footer } from "@/components/Footer";
 import { NewsAccordion } from "@/components/NewsAccordion";
-import NewsTicker from "@/components/NewsTicker";
+
 import { isSupabaseEnabled, subscribeToTable } from "@/lib/supabase";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Newspaper, ChevronDown } from "lucide-react";
 
 interface TrackInfo {
@@ -329,25 +330,10 @@ const Index = () => {
         };
     }, [fetchScrollConfig]);
 
-    const scrollToNews = () => {
-        const newsSection = document.getElementById('news-section');
-        if (newsSection) {
-            newsSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    };
+
 
     return (
         <div className="min-h-screen w-full bg-[#0a0a0c] text-white flex flex-col font-sans selection:bg-primary/30">
-            {/* News Ticker Bar */}
-            <NewsTicker 
-                message={
-                    (scrollConfig.overrideEnabled && scrollConfig.overrideMessage.trim())
-                        ? scrollConfig.overrideMessage
-                        : (scrollConfig.scrollType === "news" ? newsMessage : "")
-                }
-                visible={scrollConfig.overrideEnabled || scrollConfig.scrollType === "news"}
-            />
-
             {/* Main Player Section */}
             <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-700">
                 <RadioPlayer
@@ -366,22 +352,26 @@ const Index = () => {
                     onClearHistory={clearHistory}
                 />
                 
-                {/* Scroll Indicator */}
-                <button 
-                    onClick={scrollToNews}
-                    className="mt-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-primary transition-colors group animate-bounce"
-                >
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Explore News</span>
-                    <ChevronDown className="w-4 h-4" />
-                </button>
+                {/* Explore News Modal */}
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <button className="mt-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-primary transition-colors group">
+                            <span className="text-xs font-bold uppercase tracking-widest bg-secondary/60 backdrop-blur px-6 py-3 rounded-full border border-white/10 hover:bg-primary hover:text-primary-foreground group-hover:scale-105 transition-all outline-none">Explore News</span>
+                        </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden bg-[#0f0f11]/95 backdrop-blur-2xl text-white border-white/10 shadow-2xl rounded-3xl">
+                        <DialogHeader className="pb-4 border-b border-white/10">
+                            <DialogTitle className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+                                <Newspaper className="w-6 h-6 text-primary" />
+                                News & Information Hub
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-y-auto pt-4 pr-2 custom-scrollbar">
+                            <NewsAccordion />
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </main>
-
-            {/* News & Information Hub */}
-            <section id="news-section" className="w-full bg-black/40 backdrop-blur-xl border-t border-white/5 py-12 px-4 shadow-2xl">
-                <div className="max-w-7xl mx-auto">
-                    <NewsAccordion />
-                </div>
-            </section>
 
             <Footer />
         </div>

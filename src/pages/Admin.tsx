@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SegmentedSwitch from "@/components/SegmentedSwitch";
-import NewsTicker from "@/components/NewsTicker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getHeadlines, triggerFetch, getAggregatorStatus, deleteHeadline, updateHeadline, type HeadlinesResponse, type AggregatorStatus, type HeadlineItem } from "@/lib/newsapi-service";
@@ -55,11 +54,11 @@ const Admin = () => {
 
     const navigate = useNavigate();
 
-    const getAuthHeader = () => ({
+    const getAuthHeader = useCallback(() => ({
         'Authorization': `Bearer ${sessionStorage.getItem("admin_password") || ""}`
-    });
+    }), []);
 
-    const fetchConfig = async () => {
+    const fetchConfig = useCallback(async () => {
         if (!isAuthenticated) return;
         setIsLoading(true);
         try {
@@ -86,9 +85,9 @@ const Admin = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isAuthenticated, getAuthHeader]);
 
-    const fetchSubmissions = async () => {
+    const fetchSubmissions = useCallback(async () => {
         if (!isAuthenticated) return;
         try {
             const newsRes = await fetch('/api/news', { headers: getAuthHeader() });
@@ -100,7 +99,7 @@ const Admin = () => {
         } catch (error) {
             console.error("Error fetching submissions:", error);
         }
-    };
+    }, [isAuthenticated, getAuthHeader]);
 
     const handleSaveNews = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -210,7 +209,7 @@ const Admin = () => {
             loadHeadlines();
             loadAggStatus();
         }
-    }, [isAuthenticated, loadHeadlines, loadAggStatus]);
+    }, [isAuthenticated, fetchConfig, fetchSubmissions, loadHeadlines, loadAggStatus]);
 
     const handleSave = async () => {
         if (overrideMessage.length > 2000) {
@@ -379,17 +378,7 @@ const Admin = () => {
                                 </TabsTrigger>
                             </TabsList>
 
-                            {/* Live Preview Ticker */}
-                            <div className="space-y-4">
-                                <label className="text-sm font-semibold text-foreground/70 uppercase tracking-tighter">Live Preview</label>
-                                <NewsTicker 
-                                    message={
-                                        (overrideEnabled && overrideMessage.trim())
-                                            ? overrideMessage
-                                            : (scrollType === "news" ? (headlinesData?.fullHeadlines?.length > 0 ? "📰 NEWS UPDATE 📰  " + headlinesData.fullHeadlines.map(h => `${h.title} — ${h.source}`).join("  🔸  ") + "  🔄  " : "📰 Loading news...") : "Freedom Naija Radio")
-                                    }
-                                />
-                            </div>
+
 
                             <TabsContent value="scroll" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                                 <div className="lg:col-span-12">
