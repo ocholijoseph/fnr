@@ -8,9 +8,9 @@ import dotenv from 'dotenv';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '.env') });
 
-const PORT = process.env.PORT || process.argv[2] || 3300;
+const PORT = process.env.PORT || process.argv[2] || 3001;
 const HEADLINES_CACHE_FILE = path.join(__dirname, 'headlines_cache.json');
 const SCROLL_FILE = path.join(__dirname, 'scroll.json');
 const NEWS_FILE_PATH = path.join(__dirname, 'news.json');
