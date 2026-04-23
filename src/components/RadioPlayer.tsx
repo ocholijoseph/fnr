@@ -300,53 +300,17 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
         return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
     };
 
-    // Auto-play on component mount
-    useEffect(() => {
-        const attemptAutoPlay = async () => {
-            const audio = audioRef.current;
-            if (!audio) return;
-
-            setConnectionStatus('connecting');
-
-            // Chrome requires user interaction for autoplay
-            // Also check for mixed content issues
-            try {
-                if (!audio.paused) return; // Already playing
-
-                setConnectionStatus('connecting');
-                await audio.play();
-                setIsPlaying(true);
-                setConnectionStatus('connected');
-                lastPlayAttemptRef.current = Date.now();
-            } catch (error) {
-                console.log('Auto-play prevented by browser:', error);
-
-                // Check if it's a mixed content error (Chrome-specific)
-                if (error instanceof Error && error.message.includes('mixed content')) {
-                    console.error('MIXED CONTENT ERROR: Chrome blocks HTTP streams on HTTPS pages');
-                    console.error('Solution: Serve your app over HTTP or use HTTPS proxy for the stream');
-                    setConnectionStatus('disconnected');
-                } else {
-                    setConnectionStatus('disconnected');
-                }
-            }
-        };
-
-        attemptAutoPlay();
-
-        // Cleanup on unmount
-        return () => {
-            const reconnectTimeout = reconnectTimeoutRef.current;
-            const currentConnectionTimeout = connectionTimeoutRef.current;
-
-            if (reconnectTimeout) {
-                clearTimeout(reconnectTimeout);
-            }
-            if (currentConnectionTimeout) {
-                clearTimeout(currentConnectionTimeout);
-            }
-        };
-    }, []);
+     // Cleanup timeouts on unmount
+     useEffect(() => {
+         return () => {
+             if (reconnectTimeoutRef.current) {
+                 clearTimeout(reconnectTimeoutRef.current);
+             }
+             if (connectionTimeoutRef.current) {
+                 clearTimeout(connectionTimeoutRef.current);
+             }
+         };
+     }, []);
 
     const togglePlay = async () => {
         const audio = audioRef.current;
@@ -387,7 +351,7 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
         ? overrideMessage
         : currentTrack
             ? `${currentTrack.artist} — ${currentTrack.title}`
-            : "Freedom Naija Radio";
+            : "Freedom Naija Xtra";
 
     // Calculate dynamic duration based on text length to maintain constant speed
     // Higher factor = slower speed. 0.15 is a good balance for long text.
@@ -417,11 +381,10 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
 
     return (
         <div className="w-full max-w-xl mx-auto player-card rounded-2xl p-4 space-y-3 flex-1 flex flex-col justify-between">
-            <audio
-                ref={audioRef}
-                src={station.streamUrl}
-                preload="none"
-            />
+             <audio
+                 ref={audioRef}
+                 src={station.streamUrl}
+             />
 
             {/* Top Info Bar */}
             <div className="flex justify-between items-start w-full px-1 sm:px-2 mb-2">
@@ -448,8 +411,8 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
             <div className="flex justify-center">
                 <div className="relative group">
                     <img
-                        src="/fulllogo.png"
-                        alt="Freedom Naija Radio Logo"
+                        src="fulllogo.png"
+                        alt="Freedom Naija Xtra Logo"
                         className="h-24 w-24 sm:h-28 sm:w-28 transition-all duration-300 group-hover:scale-110 drop-shadow-2xl"
                         loading="lazy"
                     />
@@ -474,14 +437,14 @@ export const RadioPlayer = ({ station, currentTrack, currentTrackId, history = [
 
             {/* Now Playing */}
             <div className="flex items-center gap-4 bg-secondary rounded-xl p-4">
-                <div className="flex-shrink-0">
-                    <img
-                        src={thumbnail}
-                        alt="Now playing"
-                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover"
-                        loading="lazy"
-                    />
-                </div>
+                 <div className="flex-shrink-0">
+                     <img
+                         src={thumbnail}
+                         alt="Now playing"
+                         className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover"
+                         loading="lazy"
+                     />
+                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
                     <div className="text-sm text-muted-foreground mb-1 font-medium flex items-center gap-1.5">
                         {overrideMessage ? (

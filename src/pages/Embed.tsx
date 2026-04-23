@@ -8,7 +8,7 @@ const Embed = () => {
     // Mock data - in production, fetch based on stationId
     const station = {
         title: "Freedom Naija Radio",
-        streamUrl: "http://69.197.134.188:8000/live",
+        streamUrl: "/api/icecast/live",
         thumbnail: "/fulllogo.png",
         isLive: true,
     };

@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const PORT = process.env.PORT || process.argv[2] || 3001;
+const PORT = process.env.PORT || process.argv[2] || 3300;
 const HEADLINES_CACHE_FILE = path.join(__dirname, 'headlines_cache.json');
 const SCROLL_FILE = path.join(__dirname, 'scroll.json');
 const NEWS_FILE_PATH = path.join(__dirname, 'news.json');
@@ -48,9 +48,9 @@ let dailyStats = {
 
 const DEFAULT_SOCIALS = [
     { id: "1", platform: "instagram", url: "https://instagram.com/freedomnaijaradio", enabled: true },
-    { id: "2", platform: "facebook", url: "https://facebook.com/freedomnaijaradio", enabled: true },
-    { id: "3", platform: "twitter", url: "https://twitter.com/freedomnaijaradio", enabled: true },
-    { id: "4", platform: "whatsapp", url: "https://wa.me/2348000000000", enabled: true }
+    { id: "2", platform: "facebook", url: "https://facebook.com/freedomradio", enabled: true },
+    { id: "3", platform: "x", url: "https://x.com/Freedom_Naija", enabled: true },
+    { id: "4", platform: "whatsapp", url: "https://wa.me/2347071240560", enabled: true }
 ];
 
 const AFRICA_COUNTRIES = ['nigeria', 'ghana', 'kenya', 'south africa', 'egypt', 'ethiopia', 'tanzania', 'uganda', 'cameroon', 'senegal', 'algeria', 'morocco', 'tunisia', 'angola', 'mozambique', 'zambia', 'zimbabwe', 'malawi', 'mali', 'niger', 'chad', 'sudan', 'libya', 'congo', 'rwanda', 'ivory coast', 'benin', 'togo', 'burkina faso', 'guinea', 'sierra leone', 'liberia', 'gambia', 'gabon', 'namibia', 'botswana', 'lesotho', 'eswatini', 'mauritius', 'madagascar', 'somalia', 'eritrea', 'djibouti'];
@@ -485,7 +485,18 @@ async function saveHeadlinesCache(cache) {
 
 async function syncHeadlines(headlines) {
     if (!supabase) return;
-    await supabaseUpsert('news_headlines', headlines);
+    const transformed = headlines.map(h => ({
+        id: h.id,
+        title: h.title,
+        source: h.source,
+        summary: h.summary,
+        url: h.url,
+        timestamp: h.timestamp,
+        provider: h.provider,
+        region: h.region,
+        fetched_at: h.fetchedAt
+    }));
+    await supabaseUpsert('news_headlines', transformed);
 }
 
 async function runFetchCycle(providerOverride) {
@@ -791,7 +802,31 @@ const server = http.createServer(async (req, res) => {
         const id = decodeURIComponent(url.replace('/api/news-headlines/', ''));
         
         if (req.method === 'DELETE') {
-            await deleteStorage('news_headlines', HEADLINES_CACHE_FILE, id);
+            const cache = await loadHeadlinesCache();
+            const deletedHeadline = cache.headlines.find(h => h.id === id);
+
+            if (supabase) {
+                await supabaseDelete('news_headlines', id);
+            }
+
+            if (deletedHeadline) {
+                const blacklistPath = path.join(__dirname, 'deleted_urls.json');
+                const blacklist = await readJsonFile(blacklistPath, []);
+                if (deletedHeadline.url && !blacklist.includes(deletedHeadline.url)) blacklist.push(deletedHeadline.url);
+                if (deletedHeadline.title && !blacklist.includes(deletedHeadline.title)) blacklist.push(deletedHeadline.title);
+                await writeJsonFile(blacklistPath, blacklist);
+            }
+
+            cache.headlines = cache.headlines.filter(h => h.id !== id);
+            cache.scrollLines = buildScrollLines(cache.headlines);
+            cache.stats = {
+                nigeria: cache.headlines.filter(h => h.region === 'nigeria').length,
+                africa: cache.headlines.filter(h => h.region === 'africa').length,
+                world: cache.headlines.filter(h => h.region === 'world').length,
+                total: cache.headlines.length
+            };
+            await saveHeadlinesCache(cache);
+
             res.end(JSON.stringify({ success: true }));
             return;
         }
@@ -828,6 +863,25 @@ const server = http.createServer(async (req, res) => {
             });
             return;
         }
+    }
+
+    if (url === '/api/icecast/live') {
+        const streamUrl = 'http://69.197.134.188:8000/live';
+        http.get(streamUrl, (streamRes) => {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.removeHeader('transfer-encoding');
+            res.removeHeader('content-length');
+            streamRes.pipe(res);
+        }).on('error', (err) => {
+            console.error('[proxy] icecast error:', err);
+            res.statusCode = 502;
+            res.end(JSON.stringify({ error: 'Stream unavailable' }));
+        });
+        return;
     }
 
     if (url === '/api/news-headlines/status' && req.method === 'GET') {

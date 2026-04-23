@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { RadioPlayer } from "@/components/RadioPlayer";
 import { Footer } from "@/components/Footer";
 import { NewsAccordion } from "@/components/NewsAccordion";
+import type { HeadlineItem } from "@/lib/newsapi-service";
 
 import { isSupabaseEnabled, subscribeToTable } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -42,6 +43,9 @@ const Index = () => {
         }
     }, []);
 
+    const [selectedNewsHeadline, setSelectedNewsHeadline] = useState<HeadlineItem | null>(null);
+    const [isNewsDialogOpen, setIsNewsDialogOpen] = useState(false);
+
     // Clear playback history
     const clearHistory = () => {
         setHistory([]);
@@ -51,13 +55,15 @@ const Index = () => {
             console.error('Error clearing playback history:', error);
         }
     };
-    const station = {
+    
+    // Use useMemo to prevent recreating the station object on every render
+    const station = useMemo(() => ({
         title: "Freedom Naija Radio",
         // Using local proxy to fix playback and avoid mixed content/404 issues
-        streamUrl: "https://player.dreamcode.ng/api/icecast/live",
+        streamUrl: "/api/icecast/live",
         thumbnail: "/fulllogo.png",
         isLive: true,
-    };
+    }), []);
 
     const fetchArtwork = async (artist: string, title: string) => {
         try {
@@ -120,6 +126,8 @@ const Index = () => {
                 const candidates = source.filter((s: { listenurl?: string; server_name?: string }) =>
                     s.listenurl?.includes('/live') ||
                     s.server_name?.toLowerCase().includes('freedom') ||
+                    s.server_name?.toLowerCase().includes('kingdom') ||
+                    s.server_name?.toLowerCase().includes('kfmx') ||
                     s.server_name?.toLowerCase().includes('fnr')
                 );
 
@@ -353,9 +361,19 @@ const Index = () => {
                 />
                 
                 {/* Explore News Modal */}
-                <Dialog>
+                <Dialog open={isNewsDialogOpen} onOpenChange={(open) => {
+                    // If trying to close while a headline is selected, go back to list instead
+                    if (!open && selectedNewsHeadline) {
+                        setSelectedNewsHeadline(null);
+                        return;
+                    }
+                    setIsNewsDialogOpen(open);
+                }}>
                     <DialogTrigger asChild>
-                        <button className="mt-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-primary transition-colors group">
+                        <button 
+                            className="mt-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-primary transition-colors group"
+                            onClick={() => setIsNewsDialogOpen(true)}
+                        >
                             <span className="text-xs font-bold uppercase tracking-widest bg-secondary/60 backdrop-blur px-6 py-3 rounded-full border border-white/10 hover:bg-primary hover:text-primary-foreground group-hover:scale-105 transition-all outline-none">Explore News</span>
                         </button>
                     </DialogTrigger>
@@ -366,8 +384,11 @@ const Index = () => {
                                 News & Information Hub
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="flex-1 overflow-y-auto pt-4 pr-2 custom-scrollbar">
-                            <NewsAccordion />
+                        <div className="flex-1 overflow-y-auto pt-4 pr-2 custom-scrollbar overscroll-contain touch-pan-y relative" style={{ WebkitOverflowScrolling: 'touch' }}>
+                            <NewsAccordion 
+                                selectedHeadline={selectedNewsHeadline}
+                                onHeadlineChange={setSelectedNewsHeadline}
+                            />
                         </div>
                     </DialogContent>
                 </Dialog>

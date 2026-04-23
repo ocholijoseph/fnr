@@ -4,7 +4,6 @@ interface SwipeOptions {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   threshold?: number;
-  preventDefault?: boolean;
 }
 
 export const useSwipeGestures = (options: SwipeOptions = {}) => {
@@ -12,26 +11,41 @@ export const useSwipeGestures = (options: SwipeOptions = {}) => {
     onSwipeLeft,
     onSwipeRight,
     threshold = 50,
-    preventDefault = true,
   } = options;
 
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const isHorizontalSwipe = useRef(false);
   const elementRef = useRef<HTMLElement>(null);
 
-  const handleStart = useCallback((clientX: number) => {
+  const handleStart = useCallback((clientX: number, clientY: number) => {
     setIsDragging(true);
     setStartX(clientX);
+    setStartY(clientY);
     setCurrentX(clientX);
     setSwipeDirection(null);
+    isHorizontalSwipe.current = false;
   }, []);
 
-  const handleMove = useCallback((clientX: number) => {
+  const handleMove = useCallback((clientX: number, clientY: number) => {
     if (!isDragging) return;
 
     const deltaX = clientX - startX;
+    const deltaY = clientY - startY;
+
+    if (!isHorizontalSwipe.current) {
+      if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
+      isHorizontalSwipe.current = Math.abs(deltaX) > Math.abs(deltaY);
+      if (!isHorizontalSwipe.current) {
+        setIsDragging(false);
+        setSwipeDirection(null);
+        return;
+      }
+    }
+
     setCurrentX(clientX);
 
     if (Math.abs(deltaX) > threshold) {
@@ -43,14 +57,14 @@ export const useSwipeGestures = (options: SwipeOptions = {}) => {
     } else {
       setSwipeDirection(null);
     }
-  }, [isDragging, startX, threshold]);
+  }, [isDragging, startX, startY, threshold]);
 
   const handleEnd = useCallback(() => {
     if (!isDragging) return;
 
     const deltaX = currentX - startX;
 
-    if (Math.abs(deltaX) > threshold) {
+    if (isHorizontalSwipe.current && Math.abs(deltaX) > threshold) {
       if (deltaX > 0 && onSwipeRight) {
         onSwipeRight();
       } else if (deltaX < 0 && onSwipeLeft) {
@@ -60,64 +74,88 @@ export const useSwipeGestures = (options: SwipeOptions = {}) => {
 
     setIsDragging(false);
     setSwipeDirection(null);
+    isHorizontalSwipe.current = false;
   }, [isDragging, startX, currentX, threshold, onSwipeLeft, onSwipeRight]);
 
   const handleMouseDown = useCallback((e: MouseEvent) => {
-    if (preventDefault) e.preventDefault();
-    handleStart(e.clientX);
-  }, [handleStart, preventDefault]);
+    // Only handle left click
+    if (e.button !== 0) return;
+    handleStart(e.clientX, e.clientY);
+  }, [handleStart]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (preventDefault && isDragging) e.preventDefault();
-    handleMove(e.clientX);
-  }, [handleMove, preventDefault, isDragging]);
+    if (!isDragging) return;
+    handleMove(e.clientX, e.clientY);
+  }, [handleMove, isDragging]);
 
   const handleMouseUp = useCallback(() => {
     handleEnd();
   }, [handleEnd]);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
-    if (preventDefault) e.preventDefault();
     const touch = e.touches[0];
-    handleStart(touch.clientX);
-  }, [handleStart, preventDefault]);
+    handleStart(touch.clientX, touch.clientY);
+  }, [handleStart]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (preventDefault && isDragging) e.preventDefault();
+    if (!isDragging) return;
+    
     const touch = e.touches[0];
-    handleMove(touch.clientX);
-  }, [handleMove, preventDefault, isDragging]);
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
 
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
-    if (preventDefault) e.preventDefault();
+    // Determine direction if not already known
+    if (!isHorizontalSwipe.current) {
+      // Use a smaller threshold for initial movement detection (5px instead of 10px)
+      if (Math.abs(deltaX) < 5 && Math.abs(deltaY) < 5) return;
+      
+      const horizontal = Math.abs(deltaX) > Math.abs(deltaY) * 2.0; // Stay even stricter for horizontal
+      if (horizontal) {
+        isHorizontalSwipe.current = true;
+      } else {
+        // It's a vertical scroll or ambiguous, stop tracking IMMEDIATELLY to let browser handle it
+        setIsDragging(false);
+        return;
+      }
+    }
+
+    // If we're here, it's definitely a horizontal swipe
+    if (isHorizontalSwipe.current) {
+      // Prevent horizontal browser actions (like back/forward navigation)
+      if (Math.abs(deltaX) > 5) {
+        if (e.cancelable) e.preventDefault();
+      }
+      handleMove(touch.clientX, touch.clientY);
+    }
+  }, [handleMove, isDragging, startX, startY]);
+
+  const handleTouchEnd = useCallback(() => {
     handleEnd();
-  }, [handleEnd, preventDefault]);
+  }, [handleEnd]);
 
   const addEventListeners = useCallback(() => {
     const element = elementRef.current;
     if (!element) return;
 
-    // Mouse events
     element.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
 
-    // Touch events
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
+    // Use passive: true for start and end for better scroll performance
+    element.addEventListener('touchstart', handleTouchStart, { passive: true });
+    // Use passive: false ONLY for touchmove because we might call preventDefault() for horizontal swipes
     element.addEventListener('touchmove', handleTouchMove, { passive: false });
-    element.addEventListener('touchend', handleTouchEnd, { passive: false });
+    element.addEventListener('touchend', handleTouchEnd, { passive: true });
   }, [handleMouseDown, handleMouseMove, handleMouseUp, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   const removeEventListeners = useCallback(() => {
     const element = elementRef.current;
     if (!element) return;
 
-    // Mouse events
     element.removeEventListener('mousedown', handleMouseDown);
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
 
-    // Touch events
     element.removeEventListener('touchstart', handleTouchStart);
     element.removeEventListener('touchmove', handleTouchMove);
     element.removeEventListener('touchend', handleTouchEnd);

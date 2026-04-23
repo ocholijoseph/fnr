@@ -593,8 +593,36 @@ export default defineConfig(({ mode }) => {
                     setTimeout(() => runFetchCycle().catch(console.error), 5000);
                     aggregatorInterval = setInterval(() => runFetchCycle().catch(console.error), 10 * 60 * 1000);
 
-                    // ── Middleware ──
-                    server.middlewares.use(async (req: any, res: any, next: any) => {
+                     // ── Middleware ──
+                     server.middlewares.use(async (req: any, res: any, next: any) => {
+                         if (req.url?.startsWith('/api/icecast/live')) {
+                             console.log('[proxy] Received request for icecast live');
+                             const http = await import('http');
+                             const streamUrl = 'http://69.197.134.188:8000/live';
+                             http.get(streamUrl, (streamRes: any) => {
+                                 console.log('[proxy] Streaming icecast live');
+                                 // Copy headers from streamRes to res, but override Content-Type and remove some
+                                 const headersToRemove = ['transfer-encoding', 'content-length'];
+                                 for (const [key, value] of Object.entries(streamRes.headers)) {
+                                     if (!headersToRemove.includes(key.toLowerCase())) {
+                                         res.setHeader(key, value);
+                                     }
+                                 }
+                                 // Override Content-Type to be safe
+                                 res.setHeader('Content-Type', 'audio/mpeg');
+                                 res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+                                 res.setHeader('Pragma', 'no-cache');
+                                 res.setHeader('Expires', '0');
+                                 res.setHeader('X-Content-Type-Options', 'nosniff');
+                                 streamRes.pipe(res);
+                             }).on('error', (err: any) => {
+                                 console.error('[proxy] icecast error:', err);
+                                 res.statusCode = 502;
+                                 res.end(JSON.stringify({ error: 'Stream unavailable' }));
+                             });
+                             return;
+                         }
+
                         if (req.url?.startsWith('/api/social') || req.url?.startsWith('/api/scroll') || req.url?.startsWith('/api/prayer-request') || req.url?.startsWith('/api/testimonies') || req.url?.startsWith('/api/donations') || req.url?.startsWith('/api/news-headlines') || req.url?.startsWith('/api/news')) {
                             const fs = await import('fs/promises');
                             const url = req.url.split('?')[0];
@@ -879,9 +907,9 @@ export default defineConfig(({ mode }) => {
                                 const socialsPath = path.resolve(__dirname, 'socials.json');
                                 const defaultSocials = [
                                     { id: "1", platform: "instagram", url: "https://instagram.com/freedomnaijaradio", enabled: true },
-                                    { id: "2", platform: "facebook", url: "https://facebook.com/freedomnaijaradio", enabled: true },
-                                    { id: "3", platform: "twitter", url: "https://twitter.com/freedomnaijaradio", enabled: true },
-                                    { id: "4", platform: "whatsapp", url: "https://wa.me/2348000000000", enabled: true }
+                                    { id: "2", platform: "facebook", url: "https://facebook.com/freedomradio", enabled: true },
+                                    { id: "3", platform: "x", url: "https://x.com/Freedom_Naija", enabled: true },
+                                    { id: "4", platform: "whatsapp", url: "https://wa.me/2347071240560", enabled: true }
                                 ];
                                 if (req.method === 'GET') {
                                     try {

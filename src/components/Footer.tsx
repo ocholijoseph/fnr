@@ -87,6 +87,7 @@ export const Footer = () => {
                                 size="icon"
                                 className="h-10 w-10 rounded-full hover:bg-pink-500/20 hover:text-pink-500 transition-colors"
                                 onClick={() => window.open("https://instagram.com/freedomnaijaradio", "_blank")}
+                                title="Instagram"
                             >
                                 <Instagram className="h-5 w-5" />
                             </Button>
@@ -94,9 +95,28 @@ export const Footer = () => {
                                 variant="ghost"
                                 size="icon"
                                 className="h-10 w-10 rounded-full hover:bg-blue-600/20 hover:text-blue-600 transition-colors"
-                                onClick={() => window.open("https://facebook.com/freedomnaijaradio", "_blank")}
+                                onClick={() => window.open("https://facebook.com/freedomradio", "_blank")}
+                                title="Facebook"
                             >
                                 <Facebook className="h-5 w-5" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 rounded-full hover:bg-gray-500/20 hover:text-gray-400 transition-colors"
+                                onClick={() => window.open("https://x.com/Freedom_Naija", "_blank")}
+                                title="X (Twitter)"
+                            >
+                                <X className="h-5 w-5" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 rounded-full hover:bg-green-500/20 hover:text-green-500 transition-colors"
+                                onClick={() => window.open("https://wa.me/2347071240560", "_blank")}
+                                title="WhatsApp"
+                            >
+                                <MessageCircle className="h-5 w-5" />
                             </Button>
                         </>
                     )}

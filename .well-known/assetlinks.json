@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ng.dreamcode.player.twa",
+      "sha256_cert_fingerprints": [
+        "4A:14:FB:47:89:92:05:72:0B:16:D1:AE:0A:03:1C:2A:10:B7:B7:43:A4:C0:81:E1:85:6C:B8:F9:34:7F:49:79",
+        "F6:0C:5C:AF:40:A8:B7:C7:9B:90:85:2C:16:64:C0:79:9E:A5:0A:D0:DE:38:94:B3:B1:71:CA:9A:57:65:2E:E5"
+      ]
+    }
+  }
+]

@@ -5,13 +5,13 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Newspaper, AlertCircle, Loader2, Archive, RefreshCw, Zap, Globe, Clock, ChevronRight, Share2 } from "lucide-react";
+import { Newspaper, AlertCircle, Loader2, Archive, RefreshCw, Zap, Globe, Clock, ChevronRight, Share2, ArrowLeft, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { newsStorage } from "@/lib/news-storage";
 import { ArchivedNewsModal } from "@/components/ArchivedNewsModal";
 import { useSwipeGestures } from "@/hooks/use-swipe-gestures";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getHeadlines, type HeadlineItem } from "@/lib/newsapi-service";
@@ -25,9 +25,26 @@ interface ManualNewsItem {
     createdAt: string;
 }
 
-export const NewsAccordion = () => {
+export interface NewsAccordionProps {
+    selectedHeadline?: HeadlineItem | null;
+    onHeadlineChange?: (headline: HeadlineItem | null) => void;
+}
+
+export const NewsAccordion = ({ selectedHeadline: propHeadline, onHeadlineChange }: NewsAccordionProps) => {
     const [archivedCount, setArchivedCount] = useState(0);
     const [currentSwipeItem, setCurrentSwipeItem] = useState<string | null>(null);
+    const [internalHeadline, setInternalHeadline] = useState<HeadlineItem | null>(null);
+    const detailRef = useRef<HTMLDivElement>(null);
+
+    // Use either prop or local state
+    const selectedHeadline = propHeadline !== undefined ? propHeadline : internalHeadline;
+    const setSelectedHeadline = (headline: HeadlineItem | null) => {
+        if (onHeadlineChange) {
+            onHeadlineChange(headline);
+        } else {
+            setInternalHeadline(headline);
+        }
+    };
 
     // Fetch manual news items (from api-server / Supabase)
     const {
@@ -98,6 +115,29 @@ export const NewsAccordion = () => {
         setTimeout(() => setCurrentSwipeItem(null), 1000);
     }, []);
 
+    const openHeadline = useCallback((item: HeadlineItem) => {
+        setSelectedHeadline(item);
+        requestAnimationFrame(() => {
+            detailRef.current?.focus();
+        });
+    }, []);
+
+    const closeHeadline = useCallback(() => {
+        setSelectedHeadline(null);
+    }, []);
+
+    useEffect(() => {
+        if (!selectedHeadline) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeHeadline();
+            }
+        };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [selectedHeadline, closeHeadline]);
+
     if (isLoading && manualNews.length === 0 && headlines.length === 0) {
         return (
             <div className="w-full max-w-4xl mx-auto mt-8 p-8 flex flex-col items-center justify-center min-h-[300px] player-card rounded-2xl border border-white/5">
@@ -152,6 +192,78 @@ export const NewsAccordion = () => {
                 </TabsList>
 
                 <TabsContent value="live" className="space-y-4 outline-none">
+                    {selectedHeadline ? (
+                        <div
+                            ref={detailRef}
+                            tabIndex={-1}
+                            className="flex flex-col animate-in fade-in slide-in-from-right-4 duration-300"
+                        >
+                            <div className="sticky top-0 z-20 bg-[#0f0f11]/90 backdrop-blur-md pb-4 pt-1 mb-2">
+                                <button
+                                    onClick={closeHeadline}
+                                    className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-primary active:text-primary transition-colors group focus-visible:ring-2 focus-visible:ring-primary rounded-xl px-4 py-3 -ml-2 min-h-[48px] touch-manipulation bg-secondary/20 border border-white/5"
+                                    aria-label="Back to headlines"
+                                >
+                                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                                    Back to Headlines
+                                </button>
+                            </div>
+
+                            <div className="bg-secondary/20 border border-white/5 rounded-2xl overflow-hidden">
+                                <div className="p-5 sm:p-6 space-y-5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant="outline" className="text-[10px] uppercase tracking-tighter border-primary/20 bg-primary/5 text-primary">
+                                            {selectedHeadline.region}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-[10px] uppercase tracking-tighter border-blue-500/20 bg-blue-500/5 text-blue-400">
+                                            {selectedHeadline.provider}
+                                        </Badge>
+                                        <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
+                                            <Clock className="h-3 w-3" />
+                                            {new Date(selectedHeadline.timestamp).toLocaleString([], {
+                                                weekday: 'short',
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                            })}
+                                        </span>
+                                    </div>
+
+                                    <h2 className="text-xl sm:text-2xl font-bold leading-tight tracking-tight">
+                                        {selectedHeadline.title}
+                                    </h2>
+
+                                    {selectedHeadline.summary ? (
+                                        <p className="text-sm sm:text-base text-foreground/80 leading-relaxed whitespace-pre-line">
+                                            {selectedHeadline.summary}
+                                        </p>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground italic">
+                                            Full content is not available for this headline. Visit the source for details.
+                                        </p>
+                                    )}
+
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-4 border-t border-white/5">
+                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                            Source: {selectedHeadline.source}
+                                        </span>
+                                        {selectedHeadline.url && (
+                                            <a
+                                                href={selectedHeadline.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors"
+                                            >
+                                                <ExternalLink className="h-3 w-3" />
+                                                Read original article
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {headlines.length === 0 ? (
                             <div className="col-span-full py-20 text-center bg-secondary/10 rounded-2xl border border-dashed border-white/10">
@@ -160,12 +272,11 @@ export const NewsAccordion = () => {
                             </div>
                         ) : (
                             headlines.map((item: HeadlineItem) => (
-                                <a 
-                                    key={item.id} 
-                                    href={item.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="group p-4 bg-secondary/20 hover:bg-secondary/40 border border-white/5 rounded-2xl transition-all duration-300 hover:scale-[1.02] flex flex-col justify-between gap-4"
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => openHeadline(item)}
+                                    className="group p-4 sm:p-5 bg-secondary/20 hover:bg-secondary/40 active:bg-secondary/50 border border-white/5 rounded-2xl transition-colors duration-200 flex flex-col justify-between gap-4 text-left w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[100px] touch-manipulation"
                                 >
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
@@ -176,23 +287,24 @@ export const NewsAccordion = () => {
                                                 <Clock className="h-3 w-3" /> {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
-                                        <h3 className="font-bold text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                                        <h3 className="font-bold text-sm leading-snug line-clamp-2 group-hover:text-primary group-active:text-primary transition-colors">
                                             {item.title}
                                         </h3>
                                         <p className="text-xs text-muted-foreground line-clamp-2 italic">
-                                            {item.summary || 'Click to read full story on ' + item.source}
+                                            {item.summary || 'Tap to read more on ' + item.source}
                                         </p>
                                     </div>
                                     <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                         <span className="text-[10px] font-bold text-muted-foreground uppercase">{item.source}</span>
-                                        <button className="text-primary text-xs font-bold flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-primary text-xs font-bold flex items-center gap-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                             Read More <ChevronRight className="h-3 w-3" />
-                                        </button>
+                                        </span>
                                     </div>
-                                </a>
+                                </button>
                             ))
                         )}
                     </div>
+                    )}
                 </TabsContent>
 
                 <TabsContent value="manual" className="outline-none">

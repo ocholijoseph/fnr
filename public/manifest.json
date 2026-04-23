@@ -1,16 +1,65 @@
 {
-    "name": "Freedom Naija Radio",
-    "short_name": "FNR",
-    "start_url": ".",
-    "display": "standalone",
-    "orientation": "portrait",
-    "background_color": "#0f0f0f",
-    "theme_color": "#0f0f0f",
-    "icons": [
+  "name": "Freedom Naija Radio",
+  "short_name": "FNR",
+  "description": "Stream Freedom Naija Radio live - Your home for the best music, news, and entertainment across Nigeria.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "background_color": "#0a0a0c",
+  "theme_color": "#D72638",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": [
+    "entertainment",
+    "music",
+    "news"
+  ],
+  "icons": [
+  {
+    "src": "/icons/icon-192.png",
+    "sizes": "192x192",
+    "type": "image/png"
+  },
+  {
+    "src": "/icons/icon-512.png",
+    "sizes": "512x512",
+    "type": "image/png"
+  },
+  {
+    "src": "/icons/icon-192-maskable.png",
+    "sizes": "192x192",
+    "type": "image/png",
+    "purpose": "maskable"
+  },
+  {
+    "src": "/icons/icon-512-maskable.png",
+    "sizes": "512x512",
+    "type": "image/png",
+    "purpose": "maskable"
+  }
+],
+  "shortcuts": [
+    {
+      "name": "Listen Live",
+      "short_name": "Live",
+      "description": "Start listening to the live radio stream",
+      "url": "/",
+      "icons": [
         {
-            "src": "/favicon.png",
-            "sizes": "512x512",
-            "type": "image/png"
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
         }
-    ]
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot.png",
+      "type": "image/png",
+      "sizes": "1080x1920",
+      "form_factor": "narrow",
+      "label": "Freedom Naija Radio Player"
+    }
+  ]
 }

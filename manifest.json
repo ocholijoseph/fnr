@@ -1,0 +1,41 @@
+{
+  "name": "Freedom Naija Radio",
+  "short_name": "FNR",
+  "start_url": ".https://player.dreamcode.ng",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0c",
+  "theme_color": "#d72638",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "id": "com.freedomnaijaradio.fnr",
+  "description": "Stream Freedom Naija Radio live - Your home for the best music, news, and entertainment across Nigeria. Take Your Life Back!",
+  "dir": "ltr",
+  "lang": "en",
+  "display_override": [
+    "fullscreen",
+    "standalone",
+    "window-controls-overlay"
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "admin",
+      "url": "/admin",
+      "description": "Backend administration of the app"
+    }
+  ],
+  "categories": [
+    "entertainment",
+    "music",
+    "news"
+  ],
+  "edge_side_panel": {
+    "preferred_width": 380
+  }
+}

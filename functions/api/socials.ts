@@ -26,9 +26,9 @@ export async function onRequest(context: any) {
                 // Return default socials if none exist
                 const defaultSocials = [
                     { id: "1", platform: "instagram", url: "https://instagram.com/freedomnaijaradio", enabled: true },
-                    { id: "2", platform: "facebook", url: "https://facebook.com/freedomnaijaradio", enabled: true },
-                    { id: "3", platform: "x", url: "https://twitter.com/freedomnaijaradio", enabled: true },
-                    { id: "4", platform: "whatsapp", url: "https://wa.me/2348000000000", enabled: true }
+                    { id: "2", platform: "facebook", url: "https://facebook.com/freedomradio", enabled: true },
+                    { id: "3", platform: "x", url: "https://x.com/Freedom_Naija", enabled: true },
+                    { id: "4", platform: "whatsapp", url: "https://wa.me/2347071240560", enabled: true }
                 ];
                 return new Response(JSON.stringify(defaultSocials), {
                     headers: { "Content-Type": "application/json", ...corsHeaders }
